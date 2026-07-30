@@ -5,27 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clasys v3 - Panel de Gestión</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-
-
-    <style>
-        .active-tab {
-            background-color: white;
-            color: #2563eb;
-            border: 1px solid #e2e8f0;
-            border-bottom: 2px solid #2563eb;
-        }
-
-        .inactive-tab {
-            color: #64748b;
-            border: 1px solid transparent;
-        }
-
-        .inactive-tab:hover {
-            color: #1e293b;
-            background-color: #f1f5f9;
-        }
-    </style>
+    @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
 
 <body class="h-full font-sans text-slate-900 antialiased">
