@@ -98,7 +98,7 @@ class ClasysController extends Controller
 
             // Gestiones donde hubo contacto efectivo o compromiso (según tu regla de negocio)
             'positives' => $cliente->gestiones()
-                ->whereNotIn('tip_con', ['IV', 'CNE'])
+                ->whereNotIn('tip_con', ['IV', 'ML'])
                 ->whereIn('corta', ['CEF', 'CNE'])
                 ->count(),
 
@@ -126,73 +126,147 @@ class ClasysController extends Controller
         $diasParaCierre = Carbon::now()->diffInDays($fechaCierre);
 
         // 4. Renderizamos la vista principal pasándole las variables
-        return view('crm.principal', compact(
-            'cliente',
-            'recibos',
-            'historialRapido',
-            'diasParaCierre',
-            'tipo_gestiones',
-            'tipo_contactos',
-            'respuestas',
-            'sub_respuestas',
-            'codigosPromesaX',
-            'codigosConfirmacionX',
-            'condiciones',
-            'telefonosSugeridos'
-        ));
+        return view('crm.principal', [
+            'cliente' => $cliente,
+            'recibos' => $recibos,
+            'historialRapido' => $historialRapido,
+            'diasParaCierre' => $diasParaCierre,
+            'tipo_gestiones' => $tipo_gestiones,
+            'tipo_contactos' => $tipo_contactos,
+            'respuestas' => $respuestas,
+            'sub_respuestas' => $sub_respuestas,
+            'codigosPromesaX' => $codigosPromesaX,
+            'codigosConfirmacionX' => $codigosConfirmacionX,
+            'condiciones' => $condiciones,
+            'telefonosSugeridos' => $telefonosSugeridos
+        ]);
     }
 
 
-    public function getHistorialSms(Request $request, $id)
-{
-    // 1. Obtener la paginación directa (sin 'with' innecesarios en la instancia principal)
-    $smsPaginados = G110::findOrFail($id)
-        ->gestiones_sms()
-        ->orderBy('item', 'desc')
-        ->paginate(5);
+    /**
+     * Configuración por tipo de historial: qué relación de G110 consultar
+     * y cómo mapear sus columnas al formato genérico que espera el frontend
+     * (item_num, fecha, contacto, estado, comentario).
+     **/
 
-    // 2. Extraer metadatos UNA sola vez fuera del loop
-    $total = $smsPaginados->total();
-    $firstItem = $smsPaginados->firstItem();
+    protected function configHistorial(string $tipo): array
+    {
+        return match ($tipo) {
+            'sms' => [
+                'relacion' => 'gestiones_sms',
+                'campos' => fn($item) => [
+                    'contacto'   => $item->telef_ges ?? 'N/A',
+                    'estado'     => $item->tip_rb ?? 'SMS',
+                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                ],
+            ],
 
-    // 3. Mapear la colección de forma eficiente
-    $data = collect($smsPaginados->items())->map(function ($item, $key) use ($total, $firstItem) {
+            'ivr' => [
+                'relacion' => 'gestiones', // <-- confirma el nombre real de esta relación en G110
+                'campos' => fn($item) => [
+                    'contacto'   => $item->telef_ges ?? 'N/A',
+                    //'estado'     => $item->tip_rb ?? 'IVR',
+                    'estado'     => 'IVR',
+                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                ],
+            ],
 
-        // Cálculo del ítem descendente (#15, #14, #13...)
-        $numeroItem = $total - ($firstItem + $key - 1);
+            'mail' => [
+                'relacion' => 'gestiones', // <-- confirma el nombre real
+                'campos' => fn($item) => [
+                    'contacto'   => $item->comenta3 ?? $item->correo ?? 'N/A', // <-- confirma la columna del correo
+                    //'estado'     => $item->control4 ?? 'MAIL',
+                    'estado'     => 'MAIL',
+                    'comentario' => $item->comentario ?? $item->asunto ?? 'Sin detalle',
+                ],
+            ],
 
-        // Formateo de Fecha / Hora
-        $fechaFormateada = 'N/A';
+            'gestiones' => [
+                'relacion' => 'gestiones', // <-- confirma el nombre real (todas las gestiones, sin filtrar canal)
+                'campos' => fn($item) => [
+                    'contacto'   => $item->telef_ges ?? 'N/A',
+                    'estado'     => $item->tip_rb ?? 'GESTIÓN',
+                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                ],
+            ],
+            'positivas' => [
+                'relacion' => 'gestiones', // <-- confirma el nombre real (todas las gestiones, sin filtrar canal)
+                'campos' => fn($item) => [
+                    'contacto'   => $item->telef_ges ?? 'N/A',
+                    'estado'     => $item->tip_rb ?? 'GESTIÓN',
+                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                ],
+            ],
 
-        if (!empty($item->fec_sin)) {
-            $fechaFormateada = is_object($item->fec_sin)
-                ? $item->fec_sin->format('Y-m-d H:i:s')
-                : trim($item->fec_sin);
+            default => abort(404, "Tipo de historial \"$tipo\" no existe"),
+        };
+    }
 
-            if (!empty($item->control1)) {
-                $fechaClean = trim(explode(' ', $fechaFormateada)[0]);
-                $horaClean = trim($item->control1);
-                $fechaFormateada = "{$fechaClean} {$horaClean}";
-            }
+    /**
+     * Un solo endpoint para sms / ivr / mail / gestiones.
+     * Ruta sugerida: Route::get('/crm/gestion/{id}/historial/{tipo}', [Controller::class, 'historial']);
+     */
+    public function historial(Request $request, $id, string $tipo)
+    {
+        $config = $this->configHistorial($tipo);
+
+        $query = G110::findOrFail($id)->{$config['relacion']}()
+            ->orderBy('item', 'desc');
+
+        // Filtro opcional (ej. ?solo_positivas=1 para "Gestiones Positivas")
+        if ($tipo === 'positivas') {
+            $query
+                ->whereNotIn('tip_con', ['IV', 'ML'])
+                ->whereIn('corta', ['CEF', 'CNE']); // <-- ajusta al nombre real de esta columna/condición
+        } elseif ($tipo === 'gestiones') {
+            $query
+                ->whereNotIn('tip_con', ['IV', 'ML']);
+        } elseif ($tipo === 'ivr') {
+            $query
+                ->whereIn('tip_con', ['IV']);
+        } elseif ($tipo === 'mail') {
+            $query
+                ->whereIn('tip_con', ['ML']);
         }
 
-        return [
-            'item_num'   => $numeroItem,
-            'fecha'      => $fechaFormateada,
-            'telefono'   => $item->telef_ges ?? 'N/A',
-            'estado'     => $item->tip_rb ?? 'SMS',
-            'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
-        ];
-    });
+        $paginados = $query->paginate(5);
 
-    // 4. Retorno JSON
-    return response()->json([
-        'data'         => $data,
-        'current_page' => $smsPaginados->currentPage(),
-        'last_page'    => $smsPaginados->lastPage(),
-        'first_item'   => $firstItem ?? 0,
-        'last_item'    => $smsPaginados->lastItem() ?? 0,
-        'total'        => $total,
-    ]);
-}
+        $total     = $paginados->total();
+        $firstItem = $paginados->firstItem();
+
+        $data = collect($paginados->items())->map(function ($item, $key) use ($total, $firstItem, $config) {
+            $numeroItem = $total - ($firstItem + $key - 1);
+
+            // Formateo de Fecha / Hora (igual para todos los tipos)
+            $fechaFormateada = 'N/A';
+            if (!empty($item->fec_sin)) {
+                $fechaFormateada = is_object($item->fec_sin)
+                    ? $item->fec_sin->format('Y-m-d H:i:s')
+                    : trim($item->fec_sin);
+
+                if (!empty($item->control1)) {
+                    $fechaClean = trim(explode(' ', $fechaFormateada)[0]);
+                    $horaClean = trim($item->control1);
+                    $fechaFormateada = "{$fechaClean} {$horaClean}";
+                }
+            }
+
+            return array_merge(
+                [
+                    'item_num' => $numeroItem,
+                    'fecha'    => $fechaFormateada,
+                ],
+                ($config['campos'])($item)
+            );
+        });
+
+        return response()->json([
+            'data'         => $data,
+            'current_page' => $paginados->currentPage(),
+            'last_page'    => $paginados->lastPage(),
+            'first_item'   => $firstItem ?? 0,
+            'last_item'    => $paginados->lastItem() ?? 0,
+            'total'        => $total,
+        ]);
+    }
 }
