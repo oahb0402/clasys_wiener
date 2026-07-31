@@ -13,7 +13,6 @@
             @include('crm.partials._panel-gestion')
         </div>
 
-        @include('crm.partials._modal-historial')
         @include('crm.partials._modal-modificar')
 
     </div>

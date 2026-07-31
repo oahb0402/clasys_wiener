@@ -1,10 +1,13 @@
+import { renderizarBotonesPaginacion } from './utils/paginacion';
+
 // Un solo modal + una sola función, parametrizados por "tipo".
-// Para agregar un nuevo tipo de historial en el futuro, solo hay que
-// agregar una entrada aquí — no se duplica lógica de fetch/paginación.
+// Los "endpoint" deben coincidir EXACTO con los casos del match() en
+// ClasysController::configHistorial() (sms, ivr, mail, gestiones, positivas).
+// Las claves del objeto (gestiones_positivas, total_gestiones...) son las
+// que ya usan los botones en el HTML vía onclick="abrirHistorial('...')".
 const TIPOS_HISTORIAL = {
     gestiones_positivas: {
         endpoint: 'positivas',
-        //params: { solo_positivas: 1 },
         titulo: 'Gestiones Positivas',
     },
     total_gestiones: {
@@ -17,14 +20,14 @@ const TIPOS_HISTORIAL = {
     },
     sms: {
         endpoint: 'sms',
-        titulo: 'Historial de SMS',
+        titulo: 'Historial de SMS / WhatsApp',
     },
     mail: {
         endpoint: 'mail',
         titulo: 'Historial de Correos',
     },
     abonos: {
-        endpoint: 'abonos',
+        endpoint: 'abonos', // pendiente: aún no existe este caso en configHistorial()
         titulo: 'Historial de Abonos',
     },
 };
@@ -114,35 +117,9 @@ export function cargarPaginaHistorial(pagina) {
             document.getElementById('infoPaginacionHistorial').innerHTML =
                 `Mostrando <b class="text-gray-800">${res.first_item}</b> a <b class="text-gray-800">${res.last_item}</b> de <b class="text-gray-800">${res.total}</b> registros`;
 
-            renderizarBotonesPaginacion(res.current_page, res.last_page);
+            renderizarBotonesPaginacion(res.current_page, res.last_page, 'contenedorPaginacionHistorial', 'cargarPaginaHistorial');
         })
         .catch(() => {
             tbody.innerHTML = `<tr><td colspan="5" class="px-4 py-6 text-center text-red-500">Error al cargar la información.</td></tr>`;
         });
-}
-
-function renderizarBotonesPaginacion(actual, ultima) {
-    let html = '';
-
-    if (actual > 1) {
-        html += `<button onclick="cargarPaginaHistorial(${actual - 1})" class="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 text-gray-600 font-medium transition-colors">Anterior</button>`;
-    } else {
-        html += `<button disabled class="px-3 py-1.5 border border-gray-100 rounded-lg text-gray-300 cursor-not-allowed">Anterior</button>`;
-    }
-
-    for (let i = 1; i <= ultima; i++) {
-        if (i === actual) {
-            html += `<button class="w-8 h-8 rounded-lg bg-blue-600 text-white font-bold">${i}</button>`;
-        } else {
-            html += `<button onclick="cargarPaginaHistorial(${i})" class="w-8 h-8 rounded-lg border border-gray-200 hover:bg-gray-100 text-gray-600 font-medium transition-colors">${i}</button>`;
-        }
-    }
-
-    if (actual < ultima) {
-        html += `<button onclick="cargarPaginaHistorial(${actual + 1})" class="px-3 py-1.5 border border-gray-200 rounded-lg hover:bg-gray-100 text-gray-600 font-medium transition-colors">Siguiente</button>`;
-    } else {
-        html += `<button disabled class="px-3 py-1.5 border border-gray-100 rounded-lg text-gray-300 cursor-not-allowed">Siguiente</button>`;
-    }
-
-    document.getElementById('contenedorPaginacionHistorial').innerHTML = html;
 }

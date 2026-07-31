@@ -1,4 +1,5 @@
 import { cerrarDrawer } from './drawer';
+import { cargarPaginaGestionesEditar } from './gestiones-editar';
 
 export function abrirModalModificar() {
     // 1. Cerrar el drawer lateral primero
@@ -10,6 +11,9 @@ export function abrirModalModificar() {
 
     // 2. Mostrar el modal de gestiones
     document.getElementById('modal-modificar-gestion').classList.remove('hidden');
+
+    // 3. Cargar la primera página de gestiones reales
+    cargarPaginaGestionesEditar(1);
 }
 
 export function cerrarModalModificar() {

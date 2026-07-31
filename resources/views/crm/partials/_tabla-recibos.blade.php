@@ -23,8 +23,8 @@
                             <tr>
                                 <th class="py-3 px-3 text-center">
                                     <!-- <input type="checkbox" id="check-all-recibos" class="h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"> -->
-                                <th class="py-3 px-3">#</th>
                                 </th>
+                                <th class="py-3 px-3">#</th>
                                 <th class="py-3 px-3">Periodo</th>
                                 <th class="py-3 px-3 text-center">N° Cuota</th>
                                 <th class="py-3 px-3">Boleta / N°</th>
@@ -40,8 +40,8 @@
                             <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="py-2.5 px-3 text-center">
                                     <!-- <input type="checkbox" name="recibos_selected[]" value="{{ $recibo->id ?? $loop->index }}" checked class="h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"> -->
-                                <td class="py-2.5 px-3 font-mono text-slate-600">{{ $loop->index+1 }}</td>
                                 </td>
+                                <td class="py-2.5 px-3 font-mono text-slate-600">{{ $loop->index+1 }}</td>
                                 <td class="py-2.5 px-3 font-mono text-slate-600">{{ $recibo->tiser }}</td>
                                 <td class="py-2.5 px-3 text-center font-bold text-slate-700">{{ $recibo->obs2 }}</td>
                                 <td class="py-2.5 px-3 font-mono text-slate-800 font-semibold">{{ $recibo->nro_recibo }}</td>
@@ -72,6 +72,7 @@
                             @empty
                             <tr class="hover:bg-slate-50 transition-colors">
                                 <td class="py-2.5 px-3 text-center"><input type="checkbox" checked class="h-4 w-4 text-blue-600 rounded border-slate-300"></td>
+                                <td class="py-2.5 px-3 font-mono text-slate-600"></td>
                                 <td class="py-2.5 px-3 font-mono text-slate-600"></td>
                                 <td class="py-2.5 px-3 text-center font-bold text-slate-700"></td>
                                 <td class="py-2.5 px-3 font-mono text-slate-800 font-semibold"></td>

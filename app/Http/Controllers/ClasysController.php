@@ -197,6 +197,19 @@ class ClasysController extends Controller
                     'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
                 ],
             ],
+            'editar_gestiones' => [
+                'relacion' => 'gestiones',
+                'campos' => fn($item) => [
+                    // 'id' es el identificador real que se usa en editarGestion(id) desde el botón "Editar"
+                    'id'            => $item->item,
+                    'respuesta'     => trim(($item->corta ?? '') . ' - ' . ($item->comentario ?? '')), // <-- confirma: ¿de dónde sale "802 - Contestan y cuelgan"? ¿es una relación a la tabla "respuestas"?
+                    'sub_respuesta' => $item->sub_res ?? '', // <-- confirma la columna/relación real
+                    'monto_pdp'     => $item->mon_pro ?? 0,           // <-- confirma el nombre real de la columna
+                    'condicion'     => $item->condicion ?? '',          // <-- confirma el nombre real de la columna (código tipo "GN")
+                    'telefono'      => $item->telef_ges ?? '',
+                    'hora'          => $item->control1 ?? '',
+                ],
+            ],
 
             default => abort(404, "Tipo de historial \"$tipo\" no existe"),
         };
@@ -227,6 +240,9 @@ class ClasysController extends Controller
         } elseif ($tipo === 'mail') {
             $query
                 ->whereIn('tip_con', ['ML']);
+        } elseif ($tipo === 'editar_gestiones') {
+            $query
+                ->whereNotIn('usuario', ['91']);
         }
 
         $paginados = $query->paginate(5);

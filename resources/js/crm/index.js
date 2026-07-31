@@ -1,6 +1,7 @@
 import { toggleDrawer, cerrarDrawer, cambiarTabDrawer, initDrawerAtajos } from './drawer';
 import { abrirModalModificar, cerrarModalModificar, mostrarFormularioCondicion, ocultarFormularioCondicion } from './modal-modificar';
 import { abrirHistorial, cerrarModalHistorial, cargarPaginaHistorial } from './historial';
+import { cargarPaginaGestionesEditar } from './gestiones-editar';
 import { setComentario, initPanelGestion } from './panel-gestion';
 
 // Puente hacia el HTML: los onclick="..." en los .blade.php necesitan que
@@ -16,6 +17,7 @@ window.ocultarFormularioCondicion = ocultarFormularioCondicion;
 window.abrirHistorial = abrirHistorial;
 window.cerrarModalHistorial = cerrarModalHistorial;
 window.cargarPaginaHistorial = cargarPaginaHistorial;
+window.cargarPaginaGestionesEditar = cargarPaginaGestionesEditar;
 window.setComentario = setComentario;
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -18,7 +18,7 @@
                             </div>
                             <div>
                                 <h3 id="drawer-titulo" class="text-sm font-bold text-slate-800 uppercase tracking-wide">Acciones Rápidas</h3>
-                                <p id="drawer-subtitulo" class="text-[11px] text-slate-500">Código Cliente: <span class="font-bold text-slate-700">23000002593</span></p>
+                                <p id="drawer-subtitulo" class="text-[11px] text-slate-500">Código Cliente: <span class="font-bold text-slate-700">{{ $cliente->cod_deu ?? '' }}</span></p>
                             </div>
                         </div>
                         <button onclick="cerrarDrawer()" class="text-slate-400 hover:text-slate-600 p-1.5 rounded-lg hover:bg-slate-100 transition-all">
