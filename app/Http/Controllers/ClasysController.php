@@ -11,20 +11,20 @@ use Carbon\Carbon;
 
 class ClasysController extends Controller
 {
-    public function index(Request $request,$id)
+    public function index(Request $request, $id)
     {
         // 1. Buscamos el cliente en la tabla 'g110' con sus cuentas asociadas en 'g110_cta'
         $cliente = G110::with('detalles')->findOrFail($id);
 
         // Capturas los datos de la llamada/marcador
-    $paramsLlamada = [
-        'telf'             => $request->query('telf'),
-        'uid'              => $request->query('uid'),
-        'campania'         => $request->query('campania'),
-        'idllamada'        => $request->query('idllamada'),
-        'extension'        => $request->query('extension'),
-        'accionPredictivo' => $request->query('accion_predictivo'),
-    ];
+        $paramsLlamada = [
+            'telf'             => $request->query('telf'),
+            'uid'              => $request->query('uid'),
+            'campania'         => $request->query('campania'),
+            'idllamada'        => $request->query('idllamada'),
+            'extension'        => $request->query('extension'),
+            'accionPredictivo' => $request->query('accion_predictivo'),
+        ];
 
         // Para aplanar todos los recibos de todas sus cuentas en una sola colección fácil de recorrer:
         // 2. Usas directamente la colección de detalles como tus recibos
@@ -299,32 +299,151 @@ class ClasysController extends Controller
 
 
     public function obtenerGestionParaEditar(Request $request, $id, $item)
+    {
+        $cliente = G110::findOrFail($id);
+
+        $gestion = $cliente->gestiones()
+            ->where('item', $item)
+            ->firstOrFail();
+
+        return response()->json([
+            'tipcon'         => trim($gestion->tip_con ?? ''),
+            'tipgb'          => trim($gestion->tip_gb ?? ''),
+            'control'        => trim($gestion->tip_rb ?? ''),
+            'subres'         => trim($gestion->sub_res ?? ''),
+            'comentario'     => $gestion->comentario ?? '',
+            'condicion'      => trim($gestion->cond_gral ?? ''),
+            'telefono'       => trim($gestion->telef_ges ?? ''),
+            'monto_promesa'  => $gestion->mon_pro ?? 0,
+            'moneda_promesa' => trim($gestion->moneda ?? ''),
+            'fecha_promesa'  => $gestion->fec_reg,
+            'nombre_titular' => $gestion->control3,
+            'dni_titular'    => $gestion->control4,
+            'datos_tarjeta'  => $gestion->control5,
+            'medio_pago'     => trim($gestion->condicion ?? ''),
+            'comprobante_confirmacion_url' => $gestion->comenta3, // solo para mostrar link, no se puede precargar el <input type="file">
+        ]);
+    }
+
+    public function guardarGestion(Request $request, $id)
+    {
+        $cliente = G110::findOrFail($id);
+
+        $resultado = DB::transaction(function () use ($request, $cliente) {
+            $siguienteItem = DB::selectOne(
+                "SELECT nuevo_item_por_codigo(?) AS item",
+                [$cliente->cod_deu]
+            )->item;
+
+            $datos = $this->mapearDatosGestion($request);
+            $datos['cod_deu'] = $cliente->cod_deu;
+            $datos['item']    = $siguienteItem;
+            $datos['cod_ban'] = $cliente->cod_ban;
+            $datos['grupo'] = $cliente->grupo;
+            $datos['nro_cta'] = $cliente->nro_cta;
+
+            DB::table('g220')->insert($datos);
+
+             $this->actualizarCondicionCliente($cliente, $request);
+            return $siguienteItem;
+        });
+
+        return response()->json([
+            'mensaje' => 'Gestión registrada correctamente.',
+            'item'    => $resultado,
+        ]);
+    }
+
+    public function actualizarGestion(Request $request, $id, $item)
+    {
+        $cliente = G110::findOrFail($id);
+
+        DB::transaction(function () use ($request, $cliente, $item) {
+            $datos = $this->mapearDatosGestion($request);
+
+            DB::table('g220')
+                ->where('cod_deu', $cliente->cod_deu)
+                ->where('item', $item)
+                ->update($datos);
+
+            $this->actualizarCondicionCliente($cliente, $request);
+        });
+
+        return response()->json([
+            'mensaje' => 'Gestión actualizada correctamente.',
+        ]);
+    }
+
+    /**
+     * Mapea los campos del form a las columnas reales de g220.
+     * NOTA: nombre_titular, dni_titular, datos_tarjeta, medio_pago no tienen
+     * columna confirmada en g220 -> no se persisten aquí todavía.
+     * NOTA: fecha_promesa -> asumido como 'fecha1' (pendiente de confirmar
+     * con un registro real de PDP).
+     */
+    protected function mapearDatosGestion(Request $request): array
+    {
+        $datos = [
+            'tip_con'    => $request->input('tipcon'),
+            'tip_gb'     => $request->input('tipgb'),
+            'tip_rb'     => $request->input('control'),
+            'sub_res'    => $request->input('subres'),
+            'comentario' => $request->input('comentario'),
+            'cond_gral'  => $request->input('condicion'),
+            'mon_pro'    => $request->input('monto_promesa') ?: 0,
+            'moneda'     => $request->input('moneda_promesa') ?: '',
+            'fec_reg'    => $request->input('fecha_promesa') ?: null,
+            'control3'   => $request->input('nombre_titular') ?: '',
+            'control4'   => $request->input('dni_titular') ?: '',
+            'control5'   => $request->input('datos_tarjeta') ?: '',
+            'condicion'  => $request->input('medio_pago') ?: '',
+            'comenta2'   => $request->input('comenta2') ?: '',
+            'uid'        => substr($request->input('comenta2') ?: '', 0, 20),
+            'anexo'      => $request->input('anexo') ?: '',
+            'con_cam'    => $request->input('con_cam') ?: '',
+            'fec_con'    => now()->format('Y-m-d'),
+            'fec_sin'    => now()->format('Y-m-d'),
+            'control1'   => $request->input('hora_apertura'),
+            'control2'   => now()->format('H:i:s'),
+            'usuario'    => $request->input('usuario'),
+            'telef_ges'  => $request->input('telef_ges'),
+            'opcion'     => 'U',
+            'corta'      => $request->input('control_grupo'),
+            'fec_ges_ini'    => now()->format('Y-m-d') . ' ' . $request->input('hora_apertura'),
+            'fec_ges_fin'    => now()->format('Y-m-d') . ' ' . now()->format('H:i:s'),
+            'horainia'  => $request->input('hora_apertura'),
+            'horafina'   => now()->format('H:i:s'),
+        ];
+
+        if ($request->hasFile('comprobante_confirmacion')) {
+            $datos['comenta3'] = $request->file('comprobante_confirmacion')
+                ->store('comprobantes_gestion', 'public');
+        }
+
+        return $datos;
+    }
+
+    /**
+ * Actualiza g110.condicion y, solo si cambió respecto al valor anterior,
+ * deja registro histórico en g225 (unico es serial, no se envía).
+ */
+protected function actualizarCondicionCliente(G110 $cliente, Request $request): void
 {
-    $cliente = G110::findOrFail($id);
+    $condicionAnterior = $cliente->condicion;
+    $condicionNueva    = $request->input('condicion');
 
-    $gestion = $cliente->gestiones()
-        ->where('item', $item)
-        ->firstOrFail();
+    if ($condicionAnterior === $condicionNueva) {
+        return; // no cambió, no se toca nada
+    }
 
-    return response()->json([
-        'tipcon'         => trim($gestion->tip_con ?? ''),
-        'tipgb'          => trim($gestion->tip_gb ?? ''),
-        'control'        => trim($gestion->tip_rb ?? ''),
-        'subres'         => trim($gestion->sub_res ?? ''),
-        'comentario'     => $gestion->comentario ?? '',
-        'condicion'      => trim($gestion->cond_gral ?? ''),
-        'telefono'       => trim($gestion->telef_ges ?? ''),
-        'monto_promesa'  => $gestion->mon_pro ?? 0,
-        'moneda_promesa' => trim($gestion->moneda ?? ''),
-        // OJO: no encontré columna clara para esto en el dump que compartiste.
-        // Puse fecha1 como mejor candidato — verifícalo con un registro que SÍ tenga una PDP real.
-        'fecha_promesa'  => $gestion->fec_reg ?? null,
-        // Estos 4 no aparecen como columnas en g220 (¿tabla aparte de confirmaciones de pago?).
-        // Los dejo en null; si existen en otro lado, dime la tabla/relación y los agrego.
-        'nombre_titular' => trim($gestion->control3 ?? ''),
-        'dni_titular'    => trim($gestion->control4 ?? ''),
-        'datos_tarjeta'  => trim($gestion->control5 ?? ''),
-        'medio_pago'     => trim($gestion->condicion ?? ''),
+    $cliente->update(['condicion' => $condicionNueva]);
+
+    DB::table('g225')->insert([
+        'cod_deu'   => $cliente->cod_deu,
+        'condicion' => $condicionNueva,
+        'fecha'     => now()->format('Y-m-d'),
+        'hora'      => now()->format('H:i'),
+        'usuario'   => $request->input('usuario'),
     ]);
 }
 }

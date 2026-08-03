@@ -7,10 +7,14 @@ use Illuminate\Database\Eloquent\Model;
 class G110 extends Model
 {
     protected $table = 'g110';
-    
-    // Si tu llave primaria en g110 es 'cod_deu', ponla aquí. 
+
+    // Si tu llave primaria en g110 es 'cod_deu', ponla aquí.
     // Si sigue siendo 'id' pero almacena ese número largo, déjala como 'id'
-    protected $primaryKey = 'cod_deu'; 
+    protected $primaryKey = 'cod_deu';
+
+     protected $fillable = [
+        'condicion'
+    ];
 
     // ¡ESTA ES LA LÍNEA CLAVE! Le dice a Laravel que el ID es un texto (String)
     protected $keyType = 'string';
@@ -18,12 +22,14 @@ class G110 extends Model
     // Desactivamos el auto-incremento ya que es un código manual de texto
     public $incrementing = false;
 
+     public $timestamps = false;
+
     // Relación con las cuentas (g110_cta)
     public function detalles()
     {
         // El segundo parámetro es la columna FK en g110_cta (que según el error es 'cod_deu')
         // El tercer parámetro es la llave local en g110 (que asumimos es 'cod_deu')
-        return $this->hasMany(G110Cta::class, 'cod_deu', 'cod_deu'); 
+        return $this->hasMany(G110Cta::class, 'cod_deu', 'cod_deu');
     }
 
     // Relación con las gestiones (g220)

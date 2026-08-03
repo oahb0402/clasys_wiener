@@ -3,6 +3,7 @@
 
 import { cerrarDrawer } from './drawer';
 import { cargarPaginaGestionesEditar, getClienteId } from './gestiones-editar';
+import { activarModoEdicion } from './gestion-submit';
 
 
 export function abrirModalModificar() {
@@ -40,8 +41,6 @@ function rellenarSeccionPromesaOConfirmacion(data) {
     const seccionPromesa = document.getElementById('seccion-promesa');
     const seccionConfirmacion = document.getElementById('seccion-confirmacion');
 
-    // El toggle de change ya decidió cuál mostrar; llenamos SOLO la visible
-    // (ambas secciones comparten los mismos "name", por eso hay que acotar la búsqueda)
     const seccionActiva = !seccionPromesa.classList.contains('hidden')
         ? seccionPromesa
         : (!seccionConfirmacion.classList.contains('hidden') ? seccionConfirmacion : null);
@@ -62,7 +61,9 @@ function rellenarSeccionPromesaOConfirmacion(data) {
         setCampo('dni_titular', data.dni_titular);
         setCampo('datos_tarjeta', data.datos_tarjeta);
         setCampo('medio_pago', data.medio_pago);
-        // comprobante_confirmacion es <input type="file">: el navegador nunca permite precargarlo por JS
+        // El input type="file" nunca se puede precargar por JS.
+        // Si quieres mostrar el comprobante ya subido, habría que agregar
+        // un enlace/preview usando data.comprobante_confirmacion_url junto al input.
     }
 }
 
@@ -93,6 +94,7 @@ export function editarGestion(id) {
             if (selectCondicion) selectCondicion.value = data.condicion ?? '';
 
             rellenarSeccionPromesaOConfirmacion(data);
+            activarModoEdicion(id);
         })
         .catch(() => {
             alert('No se pudo cargar la gestión para editar.');

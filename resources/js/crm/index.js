@@ -3,6 +3,9 @@ import { abrirModalModificar, cerrarModalModificar, mostrarFormularioCondicion, 
 import { abrirHistorial, cerrarModalHistorial, cargarPaginaHistorial } from './historial';
 import { cargarPaginaGestionesEditar } from './gestiones-editar';
 import { setComentario, initPanelGestion } from './panel-gestion';
+import { initFormGestionSubmit, cancelarEdicionGestion } from './gestion-submit';
+
+window.cancelarEdicionGestion = cancelarEdicionGestion;
 
 // Puente hacia el HTML: los onclick="..." en los .blade.php necesitan que
 // estas funciones existan en window. Si en el futuro se migran los onclick
@@ -24,4 +27,5 @@ window.editarGestion = editarGestion;
 document.addEventListener('DOMContentLoaded', () => {
     initDrawerAtajos();
     initPanelGestion();
+     initFormGestionSubmit();
 });

@@ -9,7 +9,6 @@ function initPromesaConfirmacionToggle() {
 
     if (!selectRespuesta || !seccionPromesa || !seccionConfirmacion) return;
 
-    // Cargar listas de códigos desde los atributos data-
     const codigosPromesa = JSON.parse(selectRespuesta.getAttribute('data-promesas-x') || '[]');
     const codigosConfirmacion = JSON.parse(selectRespuesta.getAttribute('data-confirmaciones-x') || '[]');
 
@@ -18,6 +17,7 @@ function initPromesaConfirmacionToggle() {
         seccion.querySelectorAll('input, select').forEach(el => {
             el.required = false;
             el.value = '';
+            el.disabled = true; // <-- clave: excluye estos campos del FormData al submit
         });
     }
 
@@ -25,6 +25,7 @@ function initPromesaConfirmacionToggle() {
         seccion.classList.remove('hidden');
         seccion.querySelectorAll('input, select').forEach(el => {
             el.required = true;
+            el.disabled = false; // <-- vuelve a habilitar para que sí se envíe
         });
     }
 
@@ -42,6 +43,9 @@ function initPromesaConfirmacionToggle() {
             ocultarYLimpiar(seccionConfirmacion);
         }
     });
+    // Estado inicial: ambas ocultas y deshabilitadas
+    ocultarYLimpiar(seccionPromesa);
+    ocultarYLimpiar(seccionConfirmacion);
 }
 
 function initSubrespuestaFiltro() {
@@ -95,7 +99,23 @@ function initSubrespuestaFiltro() {
     });
 }
 
+
+function initControlGrupoHidden() {
+    const selectControl = document.getElementById('select-control');
+    const inputGrupo = document.getElementById('control_grupo');
+    if (!selectControl || !inputGrupo) return;
+
+    function actualizarGrupo() {
+        const opcionSeleccionada = selectControl.options[selectControl.selectedIndex];
+        const optgroup = opcionSeleccionada ? opcionSeleccionada.closest('optgroup') : null;
+        inputGrupo.value = optgroup ? optgroup.label : '';
+    }
+
+    selectControl.addEventListener('change', actualizarGrupo);
+}
+
 export function initPanelGestion() {
     initPromesaConfirmacionToggle();
     initSubrespuestaFiltro();
+    initControlGrupoHidden();
 }

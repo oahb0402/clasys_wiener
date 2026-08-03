@@ -10,5 +10,8 @@ Route::get('/crm/gestion/{id}', [ClasysController::class, 'index'])->name('crm.p
 Route::get('/crm/gestion/{id}/historial/{tipo}', [ClasysController::class, 'historial'])->name('crm.historial');
 
 
-Route::get('/crm/gestion/{id}/gestion/{item}', [ClasysController::class, 'obtenerGestionParaEditar'])
-    ->name('crm.gestion.detalle');
+Route::get('/crm/gestion/{id}/gestion/{item}', [ClasysController::class, 'obtenerGestionParaEditar'])->name('crm.gestion.detalle');
+
+Route::post('/crm/gestion/{id}/gestion', [ClasysController::class, 'guardarGestion'])->name('crm.gestion.store');
+
+Route::put('/crm/gestion/{id}/gestion/{item}', [ClasysController::class, 'actualizarGestion'])->name('crm.gestion.update');
