@@ -11,10 +11,20 @@ use Carbon\Carbon;
 
 class ClasysController extends Controller
 {
-    public function index($id)
+    public function index(Request $request,$id)
     {
         // 1. Buscamos el cliente en la tabla 'g110' con sus cuentas asociadas en 'g110_cta'
         $cliente = G110::with('detalles')->findOrFail($id);
+
+        // Capturas los datos de la llamada/marcador
+    $paramsLlamada = [
+        'telf'             => $request->query('telf'),
+        'uid'              => $request->query('uid'),
+        'campania'         => $request->query('campania'),
+        'idllamada'        => $request->query('idllamada'),
+        'extension'        => $request->query('extension'),
+        'accionPredictivo' => $request->query('accion_predictivo'),
+    ];
 
         // Para aplanar todos los recibos de todas sus cuentas en una sola colección fácil de recorrer:
         // 2. Usas directamente la colección de detalles como tus recibos
@@ -42,8 +52,8 @@ class ClasysController extends Controller
         $respuestas = DB::table('respuestas')
             ->select('codigo', 'descrip', 'corta', 'promesa')
             ->where('activo', '1') // <-- Filtra solo las respuestas activas
-            ->where('tipo', 'TELEFONO') // <-- Filtra solo las respuestas activas
-            ->orderBy('corta', 'asc') // Ajustado a 'descrip'
+            ->where('tipo', 'TELEFONO') // <-- Filtra solo las respuestas del tipo TELEFONO
+            ->orderBy('corta', 'asc') // Ajustado a 'corta'
             ->orderBy('descrip', 'asc') // Ajustado a 'descrip'
             ->get()
             ->groupBy('corta');
@@ -60,10 +70,10 @@ class ClasysController extends Controller
 
 
         $condiciones = DB::table('condiciong110')
-            ->select('codigo', 'descrip')
-            ->where('activo', '1') // <-- Filtra solo las respuestas activas
-            ->whereNotIn('codigo', ['AC', 'AG', 'AJ', 'AD', 'BQ', 'DB', 'DV', 'DC', 'EP', 'RF', 'SS', 'IF', 'IT', 'IN', 'MN', 'NG', 'NM', 'ND', 'NT', 'PC', 'PT', 'PH', 'PU', 'X1', 'Y1', 'PF', 'PV', 'VF', 'RR', 'RW', 'SM', 'ST', 'UT', 'UF', 'UM', 'UG', 'IC', 'RN', 'UP', 'ZP', 'CA'])
-            ->orderBy('descrip', 'asc') // Ajustado a 'descrip'
+            ->select(DB::raw('TRIM(codigo) as codigo'), 'descrip')
+            ->where('activo', '1')
+            ->whereNotIn(DB::raw('TRIM(codigo)'), ['AC', 'AG', 'AJ', 'AD', 'BQ', 'DB', 'DV', 'DC', 'EP', 'RF', 'SS', 'IF', 'IT', 'IN', 'MN', 'NG', 'NM', 'ND', 'NT', 'PC', 'PT', 'PH', 'PU', 'X1', 'Y1', 'PF', 'PV', 'VF', 'RR', 'RW', 'SM', 'ST', 'UT', 'UF', 'UM', 'UG', 'IC', 'RN', 'UP', 'ZP', 'CA'])
+            ->orderBy('descrip', 'asc')
             ->get();
 
         // Obtener solo los códigos como un array: ['21', '22', '31']
@@ -123,7 +133,7 @@ class ClasysController extends Controller
         // 3. Días restantes para el cierre de cartera
         // Tomando como referencia la fecha de hoy
         $fechaCierre = Carbon::create(2026, 12, 31);
-        $diasParaCierre = Carbon::now()->diffInDays($fechaCierre);
+        $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
 
         // 4. Renderizamos la vista principal pasándole las variables
         return view('crm.principal', [
@@ -138,7 +148,8 @@ class ClasysController extends Controller
             'codigosPromesaX' => $codigosPromesaX,
             'codigosConfirmacionX' => $codigosConfirmacionX,
             'condiciones' => $condiciones,
-            'telefonosSugeridos' => $telefonosSugeridos
+            'telefonosSugeridos' => $telefonosSugeridos,
+            'paramsLlamada' => $paramsLlamada
         ]);
     }
 
@@ -285,4 +296,35 @@ class ClasysController extends Controller
             'total'        => $total,
         ]);
     }
+
+
+    public function obtenerGestionParaEditar(Request $request, $id, $item)
+{
+    $cliente = G110::findOrFail($id);
+
+    $gestion = $cliente->gestiones()
+        ->where('item', $item)
+        ->firstOrFail();
+
+    return response()->json([
+        'tipcon'         => trim($gestion->tip_con ?? ''),
+        'tipgb'          => trim($gestion->tip_gb ?? ''),
+        'control'        => trim($gestion->tip_rb ?? ''),
+        'subres'         => trim($gestion->sub_res ?? ''),
+        'comentario'     => $gestion->comentario ?? '',
+        'condicion'      => trim($gestion->cond_gral ?? ''),
+        'telefono'       => trim($gestion->telef_ges ?? ''),
+        'monto_promesa'  => $gestion->mon_pro ?? 0,
+        'moneda_promesa' => trim($gestion->moneda ?? ''),
+        // OJO: no encontré columna clara para esto en el dump que compartiste.
+        // Puse fecha1 como mejor candidato — verifícalo con un registro que SÍ tenga una PDP real.
+        'fecha_promesa'  => $gestion->fec_reg ?? null,
+        // Estos 4 no aparecen como columnas en g220 (¿tabla aparte de confirmaciones de pago?).
+        // Los dejo en null; si existen en otro lado, dime la tabla/relación y los agrego.
+        'nombre_titular' => trim($gestion->control3 ?? ''),
+        'dni_titular'    => trim($gestion->control4 ?? ''),
+        'datos_tarjeta'  => trim($gestion->control5 ?? ''),
+        'medio_pago'     => trim($gestion->condicion ?? ''),
+    ]);
+}
 }

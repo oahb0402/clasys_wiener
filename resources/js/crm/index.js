@@ -1,5 +1,5 @@
 import { toggleDrawer, cerrarDrawer, cambiarTabDrawer, initDrawerAtajos } from './drawer';
-import { abrirModalModificar, cerrarModalModificar, mostrarFormularioCondicion, ocultarFormularioCondicion } from './modal-modificar';
+import { abrirModalModificar, cerrarModalModificar, mostrarFormularioCondicion, ocultarFormularioCondicion, editarGestion } from './modal-modificar';
 import { abrirHistorial, cerrarModalHistorial, cargarPaginaHistorial } from './historial';
 import { cargarPaginaGestionesEditar } from './gestiones-editar';
 import { setComentario, initPanelGestion } from './panel-gestion';
@@ -19,6 +19,7 @@ window.cerrarModalHistorial = cerrarModalHistorial;
 window.cargarPaginaHistorial = cargarPaginaHistorial;
 window.cargarPaginaGestionesEditar = cargarPaginaGestionesEditar;
 window.setComentario = setComentario;
+window.editarGestion = editarGestion;
 
 document.addEventListener('DOMContentLoaded', () => {
     initDrawerAtajos();

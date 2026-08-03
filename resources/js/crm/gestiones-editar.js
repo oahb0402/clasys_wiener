@@ -1,6 +1,10 @@
 import { renderizarBotonesPaginacion } from './utils/paginacion';
 
-function getClienteId() {
+/* function getClienteId() {
+    return window.APP_CLIENTE_ID ?? 0;
+} */
+
+    export function getClienteId() {
     return window.APP_CLIENTE_ID ?? 0;
 }
 

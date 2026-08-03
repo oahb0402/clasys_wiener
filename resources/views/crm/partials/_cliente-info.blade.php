@@ -12,7 +12,7 @@
 
                     <div class="flex gap-2">
                         <span class="bg-red-100 text-red-700 font-bold text-xs px-3 py-1.5 rounded-full uppercase tracking-wider border border-red-200">
-                            Campaña: {{ $cliente->comentario }}
+                            Campaña: {{ $cliente->cod_ban }}-{{ $cliente->grupo }}
                         </span>
                         <span class="bg-blue-100 text-blue-700 font-bold text-xs px-3 py-1.5 rounded-full uppercase tracking-wider border border-blue-200">
                             Condición: {{ $cliente->condicion }}
