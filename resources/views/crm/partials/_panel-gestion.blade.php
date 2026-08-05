@@ -74,22 +74,21 @@
                             class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Comentarios
                             Rápidos</label>
                         <div class="flex flex-wrap gap-2">
-                            <button type="button" onclick="setComentario('Equivocado')"
-                                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
-                                <span class="w-1.5 h-1.5 rounded-full bg-slate-400"></span> Equivocado
-                            </button>
-                            <button type="button" onclick="setComentario('Grabadora')"
-                                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
-                                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Grabadora
-                            </button>
+
                             <button type="button" onclick="setComentario('No Contestan')"
                                 class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
                                 <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> No Contestan
                             </button>
-                            <button type="button" onclick="setComentario('Corta Llamada')"
+                             <button type="button" onclick="setComentario('Contestan y Cuelgan')"
                                 class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
-                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Corta Llamada
+                                <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Contestan y Cuelgan
                             </button>
+                            <button type="button" onclick="setComentario('Buzon de Voz')"
+                                class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
+                                <span class="w-1.5 h-1.5 rounded-full bg-amber-400"></span> Buzon de Voz
+                            </button>
+
+
                         </div>
                     </div>
 
@@ -103,7 +102,7 @@
                         <input type="hidden" id="control_grupo" name="control_grupo" value="">
                         <input type="hidden" name="usuario" value="{{ $paramsLlamada['uid'] }}">
                         <input type="hidden" name="telef_ges" value="{{ $paramsLlamada['telf'] }}">
-                        <input type="hidden" name="con_cam" value="{{ $paramsLlamada['accionPredictivo'] }}">
+                        <input type="hidden" name="con_cam" value="{{ $paramsLlamada['accion_predictivo'] }}">
                         <input type="hidden" name="comenta2" value="{{ $paramsLlamada['idllamada'] }}">
                         <input type="hidden" name="anexo" value="{{ $paramsLlamada['extension'] }}">
                         <input type="hidden" id="hora_apertura" name="hora_apertura" value="{{ now()->format('H:i:s') }}">

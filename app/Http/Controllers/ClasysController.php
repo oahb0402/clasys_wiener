@@ -23,8 +23,22 @@ class ClasysController extends Controller
             'campania'         => $request->query('campania'),
             'idllamada'        => $request->query('idllamada'),
             'extension'        => $request->query('extension'),
-            'accionPredictivo' => $request->query('accion_predictivo'),
+            'accion_predictivo' => $request->query('accion_predictivo'),
         ];
+
+
+        // =========================================================================
+        // Buscar en g110 otros clientes/cuentas con el mismo nro_doc
+        // =========================================================================
+        $otrasCuentas = collect();
+
+        if (!empty($cliente->nro_doc)) {
+            $otrasCuentas = G110::select('cod_deu', 'grupo', 'condicion', 'nro_cta', 'ult_mov', 'fec_ini')
+                ->where('nro_doc', trim($cliente->nro_doc))
+                ->where('cod_deu', '!=', $cliente->cod_deu) // Excluye al cliente actual que ya estás viendo
+                ->get();
+        }
+
 
         // Para aplanar todos los recibos de todas sus cuentas en una sola colección fácil de recorrer:
         // 2. Usas directamente la colección de detalles como tus recibos
@@ -49,6 +63,7 @@ class ClasysController extends Controller
             ->get();
 
 
+        // Obtenemos TODAS las respuestas activas incluyendo el campo padre (ej: 'respuesta_codigo' o 'padre_id')
         $respuestas = DB::table('respuestas')
             ->select('codigo', 'descrip', 'corta', 'promesa')
             ->where('activo', '1') // <-- Filtra solo las respuestas activas
@@ -59,7 +74,7 @@ class ClasysController extends Controller
             ->groupBy('corta');
 
 
-        // 2. Obtenemos TODAS las sub-respuestas activas incluyendo el campo padre (ej: 'respuesta_codigo' o 'padre_id')
+        // Obtenemos TODAS las sub-respuestas activas incluyendo el campo padre (ej: 'respuesta_codigo' o 'padre_id')
         $sub_respuestas = DB::table('sub_respuestas')
             ->select('codigo', 'descrip')
             ->where('activo', '1')
@@ -69,6 +84,7 @@ class ClasysController extends Controller
             ->get();
 
 
+        // Obtenemos TODAS las condiciones
         $condiciones = DB::table('condiciong110')
             ->select(DB::raw('TRIM(codigo) as codigo'), 'descrip')
             ->where('activo', '1')
@@ -76,13 +92,13 @@ class ClasysController extends Controller
             ->orderBy('descrip', 'asc')
             ->get();
 
-        // Obtener solo los códigos como un array: ['21', '22', '31']
+        // Obtener solo los códigos de promesas como un array: ['21', '22', '31']
         $codigosPromesaX = DB::table('r_respuestas_x')
             ->where('tipo', 'PROMESA')
             ->pluck('codigo')
             ->toArray();
 
-        // Obtener solo los códigos como un array: ['21', '22', '31']
+        // Obtener solo los códigos de confirmacion como un array: ['21', '22', '31']
         $codigosConfirmacionX = DB::table('r_respuestas_x')
             ->where('tipo', 'CONFIRMACION')
             ->pluck('codigo')
@@ -97,8 +113,7 @@ class ClasysController extends Controller
 
 
 
-        // Obtener el cliente con sus conteos
-        $clienteId = $id;
+        // Historial rápido de métricas
         $historialRapido = [
 
             // Total de gestiones excluyendo IV y SMS y MAIL
@@ -130,14 +145,14 @@ class ClasysController extends Controller
 
 
 
-        // 3. Días restantes para el cierre de cartera
-        // Tomando como referencia la fecha de hoy
+        // Días restantes para el cierre de cartera
         $fechaCierre = Carbon::create(2026, 12, 31);
         $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
 
         // 4. Renderizamos la vista principal pasándole las variables
         return view('crm.principal', [
             'cliente' => $cliente,
+            'otrasCuentas'         => $otrasCuentas,
             'recibos' => $recibos,
             'historialRapido' => $historialRapido,
             'diasParaCierre' => $diasParaCierre,
@@ -203,7 +218,6 @@ class ClasysController extends Controller
                 'relacion' => 'gestiones', // <-- confirma el nombre real de esta relación en G110
                 'campos' => fn($item) => [
                     'telef_ges'   => $item->telef_ges ?? 'N/A',
-                    //'estado'     => $item->tip_rb ?? 'IVR',
                     'estado'     => 'IVR',
                     'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
                     'usuario'   => $item->usuario ?? '91',
@@ -218,7 +232,6 @@ class ClasysController extends Controller
                 'relacion' => 'gestiones', // <-- confirma el nombre real
                 'campos' => fn($item) => [
                     'telef_ges'   => $item->comenta3 ?? $item->correo ?? 'N/A', // <-- confirma la columna del correo
-                    //'estado'     => $item->control4 ?? 'MAIL',
                     'estado'     => 'MAIL',
                     'comentario' => $item->comentario ?? $item->asunto ?? 'Sin detalle',
                     'usuario'   => $item->usuario ?? '91',
@@ -228,7 +241,7 @@ class ClasysController extends Controller
                     'con_cam'   => $item->con_cam ?? '',
                 ],
             ],
-            'gestiones' => [
+            'gestiones', 'positivas' => [
                 'relacion' => 'gestiones',
                 'campos' => function ($item) use ($codigosPromesa, $codigosConfirmacion) {
                     $codigoRespuesta = trim($item->tip_rb ?? '');
@@ -248,7 +261,7 @@ class ClasysController extends Controller
                 },
             ],
 
-            'positivas' => [
+            /* 'positivas' => [
                 'relacion' => 'gestiones',
                 'campos' => function ($item) use ($codigosPromesa, $codigosConfirmacion) {
                     $codigoRespuesta = trim($item->tip_rb ?? '');
@@ -266,16 +279,16 @@ class ClasysController extends Controller
                         'con_cam'   => $item->con_cam ?? '',
                     ];
                 },
-            ],
+            ], */
             'editar_gestiones' => [
                 'relacion' => 'gestiones',
                 'campos' => fn($item) => [
                     // 'id' es el identificador real que se usa en editarGestion(id) desde el botón "Editar"
                     'id'            => $item->item,
                     'respuesta'     => trim(($item->corta ?? '') . ' - ' . ($item->comentario ?? '')), // <-- confirma: ¿de dónde sale "802 - Contestan y cuelgan"? ¿es una relación a la tabla "respuestas"?
-                    'sub_respuesta' => $item->sub_res ?? '', // <-- confirma la columna/relación real
-                    'monto_pdp'     => $item->mon_pro ?? 0,           // <-- confirma el nombre real de la columna
-                    'condicion'     => $item->condicion ?? '',          // <-- confirma el nombre real de la columna (código tipo "GN")
+                    'sub_respuesta' => $item->sub_res ?? '',
+                    'monto_pdp'     => $item->mon_pro ?? 0,
+                    'condicion'     => $item->condicion ?? '',
                     'telefono'      => $item->telef_ges ?? '',
                     'hora'          => $item->control1 ?? '',
                     'usuario'       => $item->usuario ?? '91',
@@ -299,27 +312,18 @@ class ClasysController extends Controller
         $query = G110::findOrFail($id)->{$config['relacion']}()
             ->orderBy('item', 'desc');
 
-        // Filtro opcional (ej. ?solo_positivas=1 para "Gestiones Positivas")
-        if ($tipo === 'positivas') {
-            $query
-                ->whereNotIn('tip_con', ['IV', 'ML'])
-                ->whereIn('corta', ['CEF', 'CNE']); // <-- ajusta al nombre real de esta columna/condición
-        } elseif ($tipo === 'gestiones') {
-            $query
-                ->whereNotIn('tip_con', ['IV', 'ML']);
-        } elseif ($tipo === 'ivr') {
-            $query
-                ->whereIn('tip_con', ['IV']);
-        } elseif ($tipo === 'mail') {
-            $query
-                ->whereIn('tip_con', ['ML']);
-        } elseif ($tipo === 'editar_gestiones') {
-            $query
-                ->whereNotIn('usuario', ['91']);
-        }
+        // Filtros según tipo
+        // Filtros según tipo
+        match ($tipo) {
+            'positivas'        => $query->whereNotIn('tip_con', ['IV', 'ML'])->whereIn('corta', ['CEF', 'CNE']),
+            'gestiones'        => $query->whereNotIn('tip_con', ['IV', 'ML']),
+            'ivr'              => $query->whereIn('tip_con', ['IV']),
+            'mail'             => $query->whereIn('tip_con', ['ML']),
+            'editar_gestiones' => $query->whereNotIn('usuario', ['91']),
+            default            => null
+        };
 
         $paginados = $query->paginate(5);
-
         $total     = $paginados->total();
         $firstItem = $paginados->firstItem();
 
@@ -389,35 +393,70 @@ class ClasysController extends Controller
 
     public function guardarGestion(Request $request, $id)
     {
+        $this->validarGestion($request);
+
         $cliente = G110::findOrFail($id);
+        // Leemos la variable 'accion' que envían tus botones
+        $accion  = $request->input('accion', 'grabar');
 
-        $resultado = DB::transaction(function () use ($request, $cliente) {
-            $siguienteItem = DB::selectOne(
-                "SELECT nuevo_item_por_codigo(?) AS item",
-                [$cliente->cod_deu]
-            )->item;
+        $itemsRegistrados = DB::transaction(function () use ($request, $cliente, $accion) {
+            $items = [];
 
-            $datos = $this->mapearDatosGestion($request);
-            $datos['cod_deu'] = $cliente->cod_deu;
-            $datos['item']    = $siguienteItem;
-            $datos['cod_ban'] = $cliente->cod_ban;
-            $datos['grupo'] = $cliente->grupo;
-            $datos['nro_cta'] = $cliente->nro_cta;
+            // 1. Incluimos siempre la cuenta cliente principal
+            $cuentasAProcesar = collect([$cliente]);
 
-            DB::table('g220')->insert($datos);
+            // 2. Si es 'multiple', buscamos todas las demás cuentas registradas bajo el mismo nro_doc en g110
+            if ($accion === 'multiple' && !empty($cliente->nro_doc)) {
+                $otrasCuentas = G110::where('nro_doc', trim($cliente->nro_doc))
+                    ->where('cod_deu', '!=', $cliente->cod_deu)
+                    ->get();
 
-            $this->actualizarCondicionCliente($cliente, $request);
-            return $siguienteItem;
+                $cuentasAProcesar = $cuentasAProcesar->merge($otrasCuentas);
+            }
+
+            // 3. Iteramos para guardar en g220 de cada cuenta
+            foreach ($cuentasAProcesar as $cuenta) {
+                $siguienteItem = DB::selectOne(
+                    "SELECT nuevo_item_por_codigo(?) AS item",
+                    [$cuenta->cod_deu]
+                )->item;
+
+                $datos = $this->mapearDatosGestion($request);
+                $datos['cod_deu'] = $cuenta->cod_deu;
+                $datos['item']    = $siguienteItem;
+                $datos['cod_ban'] = $cuenta->cod_ban;
+                $datos['grupo']   = $cuenta->grupo;
+                $datos['nro_cta'] = $cuenta->nro_cta;
+
+                DB::table('g220')->insert($datos);
+
+                $this->actualizarCondicionCliente($cuenta, $request);
+
+                $items[] = [
+                    'cod_deu' => $cuenta->cod_deu,
+                    'item'    => $siguienteItem
+                ];
+            }
+
+            return $items;
         });
 
-        return response()->json([
-            'mensaje' => 'Gestión registrada correctamente.',
-            'item'    => $resultado,
-        ]);
-    }
+        $total = count($itemsRegistrados);
 
+        return response()->json([
+            'success' => true,
+            'mensaje' => ($accion === 'multiple' && $total > 1)
+                ? "Gestión registrada exitosamente en {$total} cuentas vinculadas."
+                : 'Gestión registrada correctamente.',
+            'items'   => $itemsRegistrados,
+            'accion'  => $accion,
+        ], 201);
+    }
     public function actualizarGestion(Request $request, $id, $item)
     {
+        // Se recomienda agregar validación previa
+        $this->validarGestion($request);
+
         $cliente = G110::findOrFail($id);
 
         DB::transaction(function () use ($request, $cliente, $item) {
@@ -433,6 +472,17 @@ class ClasysController extends Controller
 
         return response()->json([
             'mensaje' => 'Gestión actualizada correctamente.',
+        ]);
+    }
+
+
+    protected function validarGestion(Request $request): void
+    {
+        $request->validate([
+            'tipcon'    => 'required|string',
+            'control'   => 'required|string',
+            'usuario'   => 'required|string',
+            'telef_ges' => 'nullable|string|max:15',
         ]);
     }
 

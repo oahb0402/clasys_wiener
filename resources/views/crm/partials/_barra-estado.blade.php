@@ -13,7 +13,7 @@
 
                 <div class="flex items-center gap-6 text-sm">
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
-                        <span class="text-slate-400">Tipo:</span> <span class="font-semibold text-amber-400">{{$paramsLlamada['accionPredictivo']}}</span>
+                        <span class="text-slate-400">Tipo:</span> <span class="font-semibold text-amber-400">{{$paramsLlamada['accion_predictivo']}}</span>
                     </div>
                     <div class="bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-700">
                         <span class="text-slate-400">Cierre de campaña:</span>

@@ -27,11 +27,15 @@
                     <div class="grid grid-cols-2 sm:grid-cols-5 gap-3 text-center sm:text-left">
                         <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
                             <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Cód. Estudiante</span>
-                            <span class="text-sm font-bold font-mono text-slate-800">{{ $cliente->nro_cta }}</span>
+                            <span class="text-sm font-bold text-slate-800 truncate block">{{ $cliente->nro_cta }}</span>
                         </div>
-                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100 sm:col-span-2">
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
+                            <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Estado</span>
+                            <span class="text-sm font-bold font-mono text-slate-800" title="ESTADO">{{ $cliente->nom_deu3 ?? '' }}</span>
+                        </div>
+                        <div class="bg-slate-50 p-3 rounded-lg border border-slate-100">
                             <span class="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">Carrera</span>
-                            <span class="text-sm font-bold text-slate-800 truncate block" title="ODONTOLOGÍA">{{ $cliente->dir_fia ?? '' }}</span>
+                            <span class="text-sm font-bold font-mono text-slate-800" title="CARRERA">{{ $cliente->dir_fia ?? '' }}</span>
                         </div>
                         <div class="bg-amber-50 p-3 rounded-lg border border-amber-100">
                             <span class="text-[11px] font-semibold text-amber-700 uppercase tracking-wider block">Deuda Total</span>

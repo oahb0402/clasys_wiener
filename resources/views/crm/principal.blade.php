@@ -10,6 +10,7 @@
             @include('crm.partials._barra-estado')
             @include('crm.partials._cliente-info')
             @include('crm.partials._tabla-recibos')
+            @include('crm.partials._tabla-otrascuentas')
             @include('crm.partials._panel-gestion')
         </div>
 

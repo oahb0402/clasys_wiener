@@ -1,5 +1,42 @@
+// Mapeo de cada botón de "Comentarios Rápidos" a los valores que debe
+// autocompletar en el formulario. La clave debe ser EXACTA al texto que
+// se le pasa a setComentario('...') desde el onclick del botón en el HTML.
+const COMENTARIOS_RAPIDOS = {
+    'No Contestan': { gestion: 'TM', contacto: 'C', control: '803', subRespuesta: '12' },
+    'Contestan y Cuelgan': { gestion: 'TM', contacto: 'C', control: '802', subRespuesta: '12' },
+    'Buzon de Voz': { gestion: 'TM', contacto: 'C', control: '901', subRespuesta: '12' },
+};
+
+function aplicarValorSelect(id, valor) {
+    const el = document.getElementById(id);
+    if (el) el.value = valor;
+}
+
+function dispararEventoChange(id) {
+    const el = document.getElementById(id);
+    if (el) el.dispatchEvent(new Event('change'));
+}
+
 export function setComentario(texto) {
-    document.getElementById('comentario').value = 'El cliente se encuentra en estado: ' + texto;
+    document.getElementById('comentario').value =  texto;
+
+    const valores = COMENTARIOS_RAPIDOS[texto];
+    if (!valores) return; // el botón no tiene mapeo de autocompletado, solo llena el comentario
+
+    aplicarValorSelect('select-tipcon', valores.gestion);
+    aplicarValorSelect('select-tipgb', valores.contacto);
+    aplicarValorSelect('select-control', valores.control);
+
+    // Disparamos "change" en Control/Respuesta para que se recalculen
+    // automáticamente las secciones de Promesa/Confirmación y las
+    // opciones de Sub Respuesta (initPromesaConfirmacionToggle /
+    // initSubrespuestaFiltro, ambas más abajo en este mismo archivo).
+    dispararEventoChange('select-control');
+
+    // La reconstrucción de las opciones de Sub Respuesta ocurre de forma
+    // síncrona dentro del listener de "change" de arriba, así que para
+    // cuando llegamos aquí el <select> ya tiene sus opciones nuevas.
+    aplicarValorSelect('select-subres', valores.subRespuesta);
 }
 
 function initPromesaConfirmacionToggle() {
