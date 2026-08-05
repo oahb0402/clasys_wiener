@@ -28,7 +28,7 @@ class ClasysController extends Controller
 
         // Para aplanar todos los recibos de todas sus cuentas en una sola colección fácil de recorrer:
         // 2. Usas directamente la colección de detalles como tus recibos
-        $recibos = $cliente->detalles;
+        $recibos = $cliente->detalles->where('estado', '');
 
 
         //SELECT substr(codigo,3,3) as codigo1,descri from f190 where codigo like 'TB%' $adicion and codigo in ('TBTM','TBTC','TBML','TBMT','TBWA') order by codigo1
@@ -154,59 +154,118 @@ class ClasysController extends Controller
     }
 
 
+
+    // === 1. Helper reusable — agrégalo como método privado de la clase ===
+    // (evita repetir la consulta que ya tienes en index())
+    protected function obtenerCodigosPromesa(): array
+    {
+        return DB::table('r_respuestas_x')
+            ->where('tipo', 'PROMESA')
+            ->pluck('codigo')
+            ->toArray();
+    }
+
+    // === 1. Helper reusable — agrégalo como método privado de la clase ===
+    // (evita repetir la consulta que ya tienes en index())
+    protected function obtenerCodigosConfirmacion(): array
+    {
+        return DB::table('r_respuestas_x')
+            ->where('tipo', 'CONFIRMACION')
+            ->pluck('codigo')
+            ->toArray();
+    }
+
+
     /**
      * Configuración por tipo de historial: qué relación de G110 consultar
      * y cómo mapear sus columnas al formato genérico que espera el frontend
      * (item_num, fecha, contacto, estado, comentario).
      **/
 
-    protected function configHistorial(string $tipo): array
+    protected function configHistorial(string $tipo, array $codigosPromesa = [], array $codigosConfirmacion = []): array
     {
         return match ($tipo) {
             'sms' => [
                 'relacion' => 'gestiones_sms',
                 'campos' => fn($item) => [
-                    'contacto'   => $item->telef_ges ?? 'N/A',
+                    'telef_ges'   => $item->telef_ges ?? 'N/A',
                     'estado'     => $item->tip_rb ?? 'SMS',
                     'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                    'usuario'   => $item->usuario ?? '91',
+                    'fec_reg'   => $item->fec_reg ?? '-',
+                    'mon_pro'   => $item->mon_pro ?? 0,
+                    'item'   => $item->item ?? '-',
+                    'con_cam'   => $item->con_cam ?? '',
                 ],
             ],
 
             'ivr' => [
                 'relacion' => 'gestiones', // <-- confirma el nombre real de esta relación en G110
                 'campos' => fn($item) => [
-                    'contacto'   => $item->telef_ges ?? 'N/A',
+                    'telef_ges'   => $item->telef_ges ?? 'N/A',
                     //'estado'     => $item->tip_rb ?? 'IVR',
                     'estado'     => 'IVR',
                     'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                    'usuario'   => $item->usuario ?? '91',
+                    'fec_reg'   => $item->fec_reg ?? '-',
+                    'mon_pro'   => $item->mon_pro ?? 0,
+                    'item'   => $item->item ?? '-',
+                    'con_cam'   => $item->con_cam ?? '',
                 ],
             ],
 
             'mail' => [
                 'relacion' => 'gestiones', // <-- confirma el nombre real
                 'campos' => fn($item) => [
-                    'contacto'   => $item->comenta3 ?? $item->correo ?? 'N/A', // <-- confirma la columna del correo
+                    'telef_ges'   => $item->comenta3 ?? $item->correo ?? 'N/A', // <-- confirma la columna del correo
                     //'estado'     => $item->control4 ?? 'MAIL',
                     'estado'     => 'MAIL',
                     'comentario' => $item->comentario ?? $item->asunto ?? 'Sin detalle',
+                    'usuario'   => $item->usuario ?? '91',
+                    'fec_reg'   => $item->fec_reg ?? '-',
+                    'mon_pro'   => $item->mon_pro ?? 0,
+                    'item'   => $item->item ?? '-',
+                    'con_cam'   => $item->con_cam ?? '',
                 ],
+            ],
+            'gestiones' => [
+                'relacion' => 'gestiones',
+                'campos' => function ($item) use ($codigosPromesa, $codigosConfirmacion) {
+                    $codigoRespuesta = trim($item->tip_rb ?? '');
+
+                    return [
+                        'telef_ges'    => $item->telef_ges ?? 'N/A',
+                        'estado'      => $item->tip_rb ?? 'GESTIÓN',
+                        'comentario'  => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                        'es_promesa'  => in_array($codigoRespuesta, $codigosPromesa, true),
+                        'es_confirmacion' => in_array($codigoRespuesta, $codigosConfirmacion, true), // <-- Agregado
+                        'usuario'   => $item->usuario ?? '91',
+                        'fec_reg'   => $item->fec_reg ?? '-',
+                        'mon_pro'   => $item->mon_pro ?? 0,
+                        'item'   => $item->item ?? '-',
+                        'con_cam'   => $item->con_cam ?? '',
+                    ];
+                },
             ],
 
-            'gestiones' => [
-                'relacion' => 'gestiones', // <-- confirma el nombre real (todas las gestiones, sin filtrar canal)
-                'campos' => fn($item) => [
-                    'contacto'   => $item->telef_ges ?? 'N/A',
-                    'estado'     => $item->tip_rb ?? 'GESTIÓN',
-                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
-                ],
-            ],
             'positivas' => [
-                'relacion' => 'gestiones', // <-- confirma el nombre real (todas las gestiones, sin filtrar canal)
-                'campos' => fn($item) => [
-                    'contacto'   => $item->telef_ges ?? 'N/A',
-                    'estado'     => $item->tip_rb ?? 'GESTIÓN',
-                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
-                ],
+                'relacion' => 'gestiones',
+                'campos' => function ($item) use ($codigosPromesa, $codigosConfirmacion) {
+                    $codigoRespuesta = trim($item->tip_rb ?? '');
+
+                    return [
+                        'telef_ges'    => $item->telef_ges ?? 'N/A',
+                        'estado'      => $item->tip_rb ?? 'GESTIÓN',
+                        'comentario'  => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                        'es_promesa'  => in_array($codigoRespuesta, $codigosPromesa, true),
+                        'es_confirmacion' => in_array($codigoRespuesta, $codigosConfirmacion, true), // <-- Agregado
+                        'usuario'    => $item->usuario ?? '91',
+                        'fec_reg'   => $item->fec_reg ?? '-',
+                        'mon_pro'   => $item->mon_pro ?? 0,
+                        'item'   => $item->item ?? '-',
+                        'con_cam'   => $item->con_cam ?? '',
+                    ];
+                },
             ],
             'editar_gestiones' => [
                 'relacion' => 'gestiones',
@@ -219,6 +278,7 @@ class ClasysController extends Controller
                     'condicion'     => $item->condicion ?? '',          // <-- confirma el nombre real de la columna (código tipo "GN")
                     'telefono'      => $item->telef_ges ?? '',
                     'hora'          => $item->control1 ?? '',
+                    'usuario'       => $item->usuario ?? '91',
                 ],
             ],
 
@@ -232,7 +292,9 @@ class ClasysController extends Controller
      */
     public function historial(Request $request, $id, string $tipo)
     {
-        $config = $this->configHistorial($tipo);
+        $codigosPromesa = $this->obtenerCodigosPromesa();
+        $codigosConfirmacion = $this->obtenerCodigosConfirmacion();
+        $config = $this->configHistorial($tipo, $codigosPromesa, $codigosConfirmacion);
 
         $query = G110::findOrFail($id)->{$config['relacion']}()
             ->orderBy('item', 'desc');
@@ -344,7 +406,7 @@ class ClasysController extends Controller
 
             DB::table('g220')->insert($datos);
 
-             $this->actualizarCondicionCliente($cliente, $request);
+            $this->actualizarCondicionCliente($cliente, $request);
             return $siguienteItem;
         });
 
@@ -424,26 +486,26 @@ class ClasysController extends Controller
     }
 
     /**
- * Actualiza g110.condicion y, solo si cambió respecto al valor anterior,
- * deja registro histórico en g225 (unico es serial, no se envía).
- */
-protected function actualizarCondicionCliente(G110 $cliente, Request $request): void
-{
-    $condicionAnterior = $cliente->condicion;
-    $condicionNueva    = $request->input('condicion');
+     * Actualiza g110.condicion y, solo si cambió respecto al valor anterior,
+     * deja registro histórico en g225 (unico es serial, no se envía).
+     */
+    protected function actualizarCondicionCliente(G110 $cliente, Request $request): void
+    {
+        $condicionAnterior = $cliente->condicion;
+        $condicionNueva    = $request->input('condicion');
 
-    if ($condicionAnterior === $condicionNueva) {
-        return; // no cambió, no se toca nada
+        if ($condicionAnterior === $condicionNueva) {
+            return; // no cambió, no se toca nada
+        }
+
+        $cliente->update(['condicion' => $condicionNueva]);
+
+        DB::table('g225')->insert([
+            'cod_deu'   => $cliente->cod_deu,
+            'condicion' => $condicionNueva,
+            'fecha'     => now()->format('Y-m-d'),
+            'hora'      => now()->format('H:i'),
+            'usuario'   => $request->input('usuario'),
+        ]);
     }
-
-    $cliente->update(['condicion' => $condicionNueva]);
-
-    DB::table('g225')->insert([
-        'cod_deu'   => $cliente->cod_deu,
-        'condicion' => $condicionNueva,
-        'fecha'     => now()->format('Y-m-d'),
-        'hora'      => now()->format('H:i'),
-        'usuario'   => $request->input('usuario'),
-    ]);
-}
 }
