@@ -460,9 +460,11 @@ class ClasysController extends Controller
             return $items;
         });
 
-        // 2. Consumir y Registrar en Konnexia (Solo si viene desde una llamada del marcador)
+        // 2. Consumir y Registrar en Konnexia (Solo si viene desde el marcador Y la acción NO es 'grabar')
         $konnexiaRes = null;
-        if ($request->filled('comenta2')) {
+
+        // Validamos que 'comenta2' (o 'idllamada') esté presente Y que la acción presionada NO sea 'grabar'
+        if ($request->filled('comenta2') && $accion !== 'grabar') {
             $konnexiaRes = $this->enviarAKonnexia($request);
         }
 
