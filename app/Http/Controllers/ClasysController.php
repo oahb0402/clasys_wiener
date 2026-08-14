@@ -13,177 +13,148 @@ use Carbon\Carbon;
 class ClasysController extends Controller
 {
     public function index(Request $request)
-    {
-        // Obtiene cod_deu de la URL ?cod_deu=...
-        $id = $request->query('cod_deu') ?? $request->query('id');
+{
+    // 1. Obtiene cod_deu de la Query String ?cod_deu=... o ?id=...
+    $id = $request->query('cod_deu') ?? $request->query('id');
 
-        if (!$id) {
+    if (!$id) {
         abort(400, 'El parámetro cod_deu es requerido en la URL.');
-        }
-
-        // 1. Buscamos el cliente en la tabla 'g110' con sus cuentas asociadas en 'g110_cta'
-        $cliente = G110::with('detalles')->findOrFail($id);
-
-        // Capturas los datos de la llamada/marcador
-        $paramsLlamada = [
-            'telf'             => $request->query('telf'),
-            'uid'              => $request->query('uid'),
-            'campania'         => $request->query('campania'),
-            'idllamada'        => $request->query('idllamada'),
-            'extension'        => $request->query('extension'),
-            'accion_predictivo' => $request->query('accion_predictivo'),
-        ];
-
-
-        // =========================================================================
-        // Buscar en g110 otros clientes/cuentas con el mismo nro_doc
-        // =========================================================================
-        $otrasCuentas = collect();
-
-        if (!empty($cliente->nro_doc)) {
-            $otrasCuentas = G110::select('cod_deu', 'grupo', 'condicion', 'nro_cta', 'ult_mov', 'fec_ini')
-                ->where('nro_doc', trim($cliente->nro_doc))
-                ->where('cod_deu', '!=', $cliente->cod_deu) // Excluye al cliente actual que ya estás viendo
-                ->get();
-        }
-
-
-        // Para aplanar todos los recibos de todas sus cuentas en una sola colección fácil de recorrer:
-        // 2. Usas directamente la colección de detalles como tus recibos
-        $recibos = $cliente->detalles->where('estado', '');
-
-
-        //SELECT substr(codigo,3,3) as codigo1,descri from f190 where codigo like 'TB%' $adicion and codigo in ('TBTM','TBTC','TBML','TBMT','TBWA') order by codigo1
-
-        $tipo_gestiones = DB::table('f190')
-            ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
-            ->where('activo', '1')
-            ->whereIn('codigo', ['TBTM', 'TBTC', 'TBML', 'TBMT', 'TBWA']) // <-- Se cambia 'where' por 'whereIn'
-            ->orderBy('descri', 'asc')                   // <-- Ordenado alfabéticamente por descripción
-            ->get();
-
-
-        $tipo_contactos = DB::table('f190')
-            ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
-            ->where('activo', '1')
-            ->where('codigo', 'LIKE', 'UN%')
-            ->orderBy('descri', 'asc')                   // <-- Ordenado alfabéticamente por descripción
-            ->get();
-
-
-        // Obtenemos TODAS las respuestas activas incluyendo el campo padre (ej: 'respuesta_codigo' o 'padre_id')
-        $respuestas = DB::table('respuestas')
-            ->select('codigo', 'descrip', 'corta', 'promesa')
-            ->where('activo', '1') // <-- Filtra solo las respuestas activas
-            ->where('tipo', 'TELEFONO') // <-- Filtra solo las respuestas del tipo TELEFONO
-            ->orderBy('corta', 'asc') // Ajustado a 'corta'
-            ->orderBy('descrip', 'asc') // Ajustado a 'descrip'
-            ->get()
-            ->groupBy('corta');
-
-
-        // Obtenemos TODAS las sub-respuestas activas incluyendo el campo padre (ej: 'respuesta_codigo' o 'padre_id')
-        $sub_respuestas = DB::table('sub_respuestas')
-            ->select('codigo', 'descrip')
-            ->where('activo', '1')
-            ->where('tipo', 'TELEFONO')
-            // Quitamos el ->where('codigo', '!=', '12') para que se envíe a la vista
-            ->orderByRaw('codigo::int ASC')
-            ->get();
-
-
-        // Obtenemos TODAS las condiciones
-        $condiciones = DB::table('condiciong110')
-            ->select(DB::raw('TRIM(codigo) as codigo'), 'descrip')
-            ->where('activo', '1')
-            ->whereNotIn(DB::raw('TRIM(codigo)'), ['AC', 'AG', 'AJ', 'AD', 'BQ', 'DB', 'DV', 'DC', 'EP', 'RF', 'SS', 'IF', 'IT', 'IN', 'MN', 'NG', 'NM', 'ND', 'NT', 'PC', 'PT', 'PH', 'PU', 'X1', 'Y1', 'PF', 'PV', 'VF', 'RR', 'RW', 'SM', 'ST', 'UT', 'UF', 'UM', 'UG', 'IC', 'RN', 'UP', 'ZP', 'CA'])
-            ->orderBy('descrip', 'asc')
-            ->get();
-
-        // Obtener solo los códigos de promesas como un array: ['21', '22', '31']
-        $codigosPromesaX = $this->obtenerCodigosPromesa();
-
-        // Obtener solo los códigos de confirmacion como un array: ['21', '22', '31']
-        $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
-
-        // Pasamos el $id del cliente de forma segura en un arreglo de parámetros
-        $telefonosSugeridos = [];
-        /* $telefonosSugeridos = DB::select('SELECT * FROM f_telefonos_totales_banco_cod_deu(:cod_deu)', [
-        'cod_deu' => $id
-        ]); */
-
-        // Buscamos si existe alguna promesa activa para este cliente en g220
-        $promesaActivaQuery = DB::table('g220')
-            ->where('cod_deu', $cliente->cod_deu)
-            ->whereIn('tip_rb', $codigosPromesaX)
-            ->where('fec_reg', '>=', now()->format('Y-m-d'))
-            ->orderBy('item', 'desc')
-            ->first();
-
-        // Mapeamos los datos de la promesa para la vista
-        $promesaActiva = $promesaActivaQuery ? [
-            'existe' => true,
-            'fecha'  => $promesaActivaQuery->fec_reg ?? null,
-            'monto'  => $promesaActivaQuery->mon_pro ?? null,
-        ] : null;
-
-
-
-        // Historial rápido de métricas
-        $historialRapido = [
-
-            // Total de gestiones excluyendo IV y SMS y MAIL
-            'total' => $cliente->gestiones()
-                ->whereNotIn('tip_con', ['IV', 'ML'])
-                ->count(),
-
-            // Gestiones donde hubo contacto efectivo o compromiso (según tu regla de negocio)
-            'positives' => $cliente->gestiones()
-                ->whereNotIn('tip_con', ['IV', 'ML'])
-                ->whereIn('corta', ['CEF', 'CNE'])
-                ->count(),
-
-            // Herramienta IVR (Interactive Voice Response)
-            'ivr' => $cliente->gestiones()
-                ->where('tip_con', 'IV') // O filtrando por tabla/relación de IVR
-                ->count(),
-
-            'mail' => $cliente->gestiones()
-                ->whereIn('tip_con', ['ML'])
-                ->count(),
-
-            'sms' => $cliente->gestiones_sms()
-                ->count(),
-
-            'abono' => 0
-        ];
-
-
-
-
-        // Días restantes para el cierre de cartera
-        $fechaCierre = Carbon::create(2026, 12, 31);
-        $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
-
-        // 4. Renderizamos la vista principal pasándole las variables
-        return view('crm.principal', [
-            'cliente' => $cliente,
-            'otrasCuentas'         => $otrasCuentas,
-            'recibos' => $recibos,
-            'historialRapido' => $historialRapido,
-            'diasParaCierre' => $diasParaCierre,
-            'tipo_gestiones' => $tipo_gestiones,
-            'tipo_contactos' => $tipo_contactos,
-            'respuestas' => $respuestas,
-            'sub_respuestas' => $sub_respuestas,
-            'codigosPromesaX' => $codigosPromesaX,
-            'codigosConfirmacionX' => $codigosConfirmacionX,
-            'condiciones' => $condiciones,
-            'telefonosSugeridos' => $telefonosSugeridos,
-            'paramsLlamada' => $paramsLlamada,
-            'promesaActiva' => $promesaActiva
-        ]);
     }
+
+    // 2. Buscamos el cliente especificando el campo cod_deu
+    $cliente = G110::with('detalles')
+        ->where('cod_deu', $id)
+        ->firstOrFail();
+
+    // Captura los datos enviados por el marcador predictivo
+    $paramsLlamada = [
+        'telf'              => $request->query('telf'),
+        'uid'               => $request->query('uid'),
+        'campania'          => $request->query('campania'),
+        'idllamada'         => $request->query('idllamada'),
+        'extension'         => $request->query('extension'),
+        'accion_predictivo' => $request->query('accion_predictivo'),
+    ];
+
+    // Buscar en g110 otros clientes/cuentas con el mismo nro_doc
+    $otrasCuentas = collect();
+    if (!empty($cliente->nro_doc)) {
+        $otrasCuentas = G110::select('cod_deu', 'grupo', 'condicion', 'nro_cta', 'ult_mov', 'fec_ini')
+            ->where('nro_doc', trim($cliente->nro_doc))
+            ->where('cod_deu', '!=', $cliente->cod_deu)
+            ->get();
+    }
+
+    // Recibos pendientes
+    $recibos = $cliente->detalles->where('estado', '');
+
+    // Listados de catálogos f190
+    $tipo_gestiones = DB::table('f190')
+        ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
+        ->where('activo', '1')
+        ->whereIn('codigo', ['TBTM', 'TBTC', 'TBML', 'TBMT', 'TBWA'])
+        ->orderBy('descri', 'asc')
+        ->get();
+
+    $tipo_contactos = DB::table('f190')
+        ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
+        ->where('activo', '1')
+        ->where('codigo', 'LIKE', 'UN%')
+        ->orderBy('descri', 'asc')
+        ->get();
+
+    // Respuestas y Sub-respuestas
+    $respuestas = DB::table('respuestas')
+        ->select('codigo', 'descrip', 'corta', 'promesa')
+        ->where('activo', '1')
+        ->where('tipo', 'TELEFONO')
+        ->orderBy('corta', 'asc')
+        ->orderBy('descrip', 'asc')
+        ->get()
+        ->groupBy('corta');
+
+    $sub_respuestas = DB::table('sub_respuestas')
+        ->select('codigo', 'descrip')
+        ->where('activo', '1')
+        ->where('tipo', 'TELEFONO')
+        ->orderByRaw('codigo::int ASC')
+        ->get();
+
+    // Condiciones activas
+    $condiciones = DB::table('condiciong110')
+        ->select(DB::raw('TRIM(codigo) as codigo'), 'descrip')
+        ->where('activo', '1')
+        ->whereNotIn(DB::raw('TRIM(codigo)'), ['AC', 'AG', 'AJ', 'AD', 'BQ', 'DB', 'DV', 'DC', 'EP', 'RF', 'SS', 'IF', 'IT', 'IN', 'MN', 'NG', 'NM', 'ND', 'NT', 'PC', 'PT', 'PH', 'PU', 'X1', 'Y1', 'PF', 'PV', 'VF', 'RR', 'RW', 'SM', 'ST', 'UT', 'UF', 'UM', 'UG', 'IC', 'RN', 'UP', 'ZP', 'CA'])
+        ->orderBy('descrip', 'asc')
+        ->get();
+
+    // Arrays de Promesas y Confirmaciones
+    $codigosPromesaX = $this->obtenerCodigosPromesa();
+    $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
+
+    $telefonosSugeridos = [];
+
+    // Promesa activa en g220
+    $promesaActivaQuery = DB::table('g220')
+        ->where('cod_deu', $cliente->cod_deu)
+        ->whereIn('tip_rb', $codigosPromesaX)
+        ->where('fec_reg', '>=', now()->format('Y-m-d'))
+        ->orderBy('item', 'desc')
+        ->first();
+
+    $promesaActiva = $promesaActivaQuery ? [
+        'existe' => true,
+        'fecha'  => $promesaActivaQuery->fec_reg ?? null,
+        'monto'  => $promesaActivaQuery->mon_pro ?? null,
+    ] : null;
+
+    // Métricas rápidas
+    $historialRapido = [
+        'total' => $cliente->gestiones()
+            ->whereNotIn('tip_con', ['IV', 'ML'])
+            ->count(),
+
+        'positives' => $cliente->gestiones()
+            ->whereNotIn('tip_con', ['IV', 'ML'])
+            ->whereIn('corta', ['CEF', 'CNE'])
+            ->count(),
+
+        'ivr' => $cliente->gestiones()
+            ->where('tip_con', 'IV')
+            ->count(),
+
+        'mail' => $cliente->gestiones()
+            ->whereIn('tip_con', ['ML'])
+            ->count(),
+
+        'sms' => $cliente->gestiones_sms()
+            ->count(),
+
+        'abono' => 0
+    ];
+
+    // Días al cierre
+    $fechaCierre = Carbon::create(2026, 12, 31);
+    $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
+
+    return view('crm.principal', [
+        'cliente'              => $cliente,
+        'otrasCuentas'         => $otrasCuentas,
+        'recibos'              => $recibos,
+        'historialRapido'      => $historialRapido,
+        'diasParaCierre'       => $diasParaCierre,
+        'tipo_gestiones'       => $tipo_gestiones,
+        'tipo_contactos'       => $tipo_contactos,
+        'respuestas'           => $respuestas,
+        'sub_respuestas'       => $sub_respuestas,
+        'codigosPromesaX'      => $codigosPromesaX,
+        'codigosConfirmacionX' => $codigosConfirmacionX,
+        'condiciones'          => $condiciones,
+        'telefonosSugeridos'   => $telefonosSugeridos,
+        'paramsLlamada'        => $paramsLlamada,
+        'promesaActiva'        => $promesaActiva
+    ]);
+}
 
 
     // === 1. Helper reusable — agrégalo como método privado de la clase ===
