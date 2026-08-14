@@ -9,9 +9,9 @@
                         <h2 class="font-bold text-slate-700 text-sm uppercase tracking-wide">Detalle de Recibos y Cuotas</h2>
                     </div>
                     <div class="flex items-center gap-2">
-                        <span class="text-xs bg-slate-200 text-slate-700 px-2.5 py-1 rounded-full font-medium">
-                            Moneda: Soles (PEN)
-                        </span>
+                         <span class="bg-blue-100 text-blue-800 text-[10px] font-bold px-2 py-0.5 rounded-full">
+                {{ $recibos->count() }} @choice('recibo|recibos', $recibos->count())
+            </span>
                     </div>
                 </div>
 
@@ -24,7 +24,6 @@
                                 <th class="py-3 px-3 text-center">
                                     <!-- <input type="checkbox" id="check-all-recibos" class="h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"> -->
                                 </th>
-                                <th class="py-3 px-3">#</th>
                                 <th class="py-3 px-3">Periodo</th>
                                 <th class="py-3 px-3 text-center">N° Cuota</th>
                                 <th class="py-3 px-3">Boleta / N°</th>
@@ -41,7 +40,6 @@
                                 <td class="py-2.5 px-3 text-center">
                                     <!-- <input type="checkbox" name="recibos_selected[]" value="{{ $recibo->id ?? $loop->index }}" checked class="h-4 w-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 cursor-pointer"> -->
                                 </td>
-                                <td class="py-2.5 px-3 font-mono text-slate-600">{{ $loop->index+1 }}</td>
                                 <td class="py-2.5 px-3 font-mono text-slate-600">{{ $recibo->tiser }}</td>
                                 <td class="py-2.5 px-3 text-center font-bold text-slate-700">{{ $recibo->obs2 }}</td>
                                 <td class="py-2.5 px-3 font-mono text-slate-800 font-semibold">{{ $recibo->nro_recibo }}</td>

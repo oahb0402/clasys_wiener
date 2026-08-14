@@ -18,7 +18,7 @@ function dispararEventoChange(id) {
 }
 
 export function setComentario(texto) {
-    document.getElementById('comentario').value =  texto;
+    document.getElementById('comentario').value = texto;
 
     const valores = COMENTARIOS_RAPIDOS[texto];
     if (!valores) return; // el botón no tiene mapeo de autocompletado, solo llena el comentario
@@ -136,7 +136,6 @@ function initSubrespuestaFiltro() {
     });
 }
 
-
 function initControlGrupoHidden() {
     const selectControl = document.getElementById('select-control');
     const inputGrupo = document.getElementById('control_grupo');
@@ -151,8 +150,143 @@ function initControlGrupoHidden() {
     selectControl.addEventListener('change', actualizarGrupo);
 }
 
+function initAgendadoToggle() {
+    const checkAgendar = document.getElementById('check-agendar');
+    const seccionAgendar = document.getElementById('seccion-agendar');
+    const inputFecha = document.getElementById('fec_agenda');
+    const inputHora = document.getElementById('hor_agenda');
+
+    if (!checkAgendar || !seccionAgendar || !inputFecha || !inputHora) return;
+
+    checkAgendar.addEventListener('change', function () {
+        if (this.checked) {
+            seccionAgendar.classList.remove('hidden');
+            inputFecha.disabled = false;
+            inputHora.disabled = false;
+            inputFecha.required = true;
+            inputHora.required = true;
+
+            // Asigna la fecha actual por defecto si está vacía
+            if (!inputFecha.value) {
+                inputFecha.value = new Date().toISOString().split('T')[0];
+            }
+        } else {
+            seccionAgendar.classList.add('hidden');
+            inputFecha.disabled = true;
+            inputHora.disabled = true;
+            inputFecha.required = false;
+            inputHora.required = false;
+            inputFecha.value = '';
+            inputHora.value = '';
+        }
+    });
+
+    // Estado inicial: oculto y deshabilitado
+    seccionAgendar.classList.add('hidden');
+    inputFecha.disabled = true;
+    inputHora.disabled = true;
+    inputFecha.required = false;
+    inputHora.required = false;
+}
+
 export function initPanelGestion() {
     initPromesaConfirmacionToggle();
     initSubrespuestaFiltro();
     initControlGrupoHidden();
+    initAgendadoToggle();
+}
+
+
+export function resetSeccionAgendar() {
+    const checkAgendar = document.getElementById('check-agendar');
+    const seccionAgendar = document.getElementById('seccion-agendar');
+    const inputFecha = document.getElementById('fec_agenda');
+    const inputHora = document.getElementById('hor_agenda');
+
+    if (checkAgendar) checkAgendar.checked = false;
+
+    if (seccionAgendar) seccionAgendar.classList.add('hidden');
+
+    if (inputFecha) {
+        inputFecha.value = '';
+        inputFecha.disabled = true;
+        inputFecha.required = false;
+    }
+
+    if (inputHora) {
+        inputHora.value = '';
+        inputHora.disabled = true;
+        inputHora.required = false;
+    }
+}
+
+
+export function actualizarAlertaPromesaActiva(promesa) {
+    const contenedor = document.getElementById('promesas-gestion');
+    const detalleTexto = document.getElementById('promesa-detalle-texto');
+
+    if (!contenedor) return;
+
+    if (promesa && (promesa.existe || typeof promesa === 'object')) {
+        // Remueve la clase hidden para hacer visible la alerta
+        contenedor.classList.remove('hidden');
+
+        if (detalleTexto) {
+            const fecha = promesa.fecha ?? promesa.fecha_promesa ?? '';
+            const rawMonto = promesa.monto ?? promesa.monto_promesa;
+
+            let montoFormateado = '';
+            if (rawMonto !== null && rawMonto !== undefined && rawMonto !== '') {
+                const num = Number(String(rawMonto).replace(/,/g, ''));
+                montoFormateado = !isNaN(num)
+                    ? num.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+                    : rawMonto;
+            }
+
+            detalleTexto.textContent = `${fecha} ${montoFormateado ? '- S/ ' + montoFormateado : ''}`.trim();
+        }
+    } else {
+        // Oculta el contenedor si no hay promesa activa
+        contenedor.classList.add('hidden');
+        if (detalleTexto) detalleTexto.textContent = '';
+    }
+}
+
+
+export function configurarLimiteFechas() {
+    const inputPromesa = document.getElementById('fecha_promesa_input');
+    const inputConfirmacion = document.getElementById('fecha_confirmacion_input');
+
+    // Helper para formatear 'YYYY-MM-DD'
+    const formatearFecha = (fecha) => fecha.toISOString().split('T')[0];
+
+    const hoy = new Date();
+
+    // -------------------------------------------------------------
+    // 1. RESTRICCIÓN SECCIÓN PROMESA (Solo Hoy y Mañana)
+    // -------------------------------------------------------------
+    if (inputPromesa) {
+        const manana = new Date();
+        manana.setDate(hoy.getDate() + 1);
+
+        const fechaMinPromesa = formatearFecha(hoy);
+        const fechaMaxPromesa = formatearFecha(manana);
+
+        inputPromesa.min = fechaMinPromesa;
+        inputPromesa.max = fechaMaxPromesa;
+    }
+
+    // -------------------------------------------------------------
+    // 2. RESTRICCIÓN SECCIÓN CONFIRMACIÓN (Todo el mes actual hasta Hoy)
+    // -------------------------------------------------------------
+    if (inputConfirmacion) {
+        // Primer día del mes en curso
+        const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+
+        const fechaMinConfirmacion = formatearFecha(primerDiaMes);
+        const fechaMaxConfirmacion = formatearFecha(hoy);
+
+        inputConfirmacion.min = fechaMinConfirmacion;
+        inputConfirmacion.max = fechaMaxConfirmacion;
+    }
 }

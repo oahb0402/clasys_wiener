@@ -14,6 +14,29 @@
                     <span class="text-xs text-slate-400 font-medium">CRM Cobranzas</span>
                 </div>
 
+                <!-- CONTENEDOR DE PROMESAS VIGENTES -->
+                <div id="promesas-gestion"
+                    class="{{ !empty($promesaActiva) ? '' : 'hidden' }} bg-amber-50 border border-amber-200 text-amber-800 text-xs font-semibold rounded-lg p-3 flex items-center justify-between shadow-sm">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="none" stroke="currentColor"
+                            viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <span>
+                            <strong>¡Atención!</strong> El cliente tiene una <span
+                                class="uppercase underline font-bold">Promesa Activa</span>.
+                        </span>
+                    </div>
+
+                    <span id="promesa-detalle-texto"
+                        class="text-[11px] font-normal text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded border border-amber-200">
+                        @if (!empty($promesaActiva))
+                            {{ $promesaActiva['fecha'] ?? '' }}
+                            {{ isset($promesaActiva['monto']) ? '- S/ ' . $promesaActiva['monto'] : '' }}
+                        @endif
+                    </span>
+                </div>
                 <div class="p-6 space-y-6">
                     <!-- BANNER DE RESUMEN DE INTERACCIONES -->
                     <div class="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-slate-100">
@@ -79,7 +102,7 @@
                                 class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
                                 <span class="w-1.5 h-1.5 rounded-full bg-red-400"></span> No Contestan
                             </button>
-                             <button type="button" onclick="setComentario('Contestan y Cuelgan')"
+                            <button type="button" onclick="setComentario('Contestan y Cuelgan')"
                                 class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-medium rounded-lg border border-slate-200 transition-colors flex items-center gap-1.5">
                                 <span class="w-1.5 h-1.5 rounded-full bg-rose-500"></span> Contestan y Cuelgan
                             </button>
@@ -95,7 +118,8 @@
                     <hr class="border-slate-100">
 
                     <!-- FORMULARIO PRINCIPAL -->
-                    <form id="form-gestion" action="#" method="POST" enctype="multipart/form-data" novalidate class="space-y-6">
+                    <form id="form-gestion" action="#" method="POST" enctype="multipart/form-data" novalidate
+                        class="space-y-6">
                         @csrf
                         <input type="hidden" name="cliente_id" value="{{ $cliente->id }}">
                         <input type="hidden" id="editar_item_id" name="item_id" value="">
@@ -105,7 +129,8 @@
                         <input type="hidden" name="con_cam" value="{{ $paramsLlamada['accion_predictivo'] }}">
                         <input type="hidden" name="comenta2" value="{{ $paramsLlamada['idllamada'] }}">
                         <input type="hidden" name="anexo" value="{{ $paramsLlamada['extension'] }}">
-                        <input type="hidden" id="hora_apertura" name="hora_apertura" value="{{ now()->format('H:i:s') }}">
+                        <input type="hidden" id="hora_apertura" name="hora_apertura"
+                            value="{{ now()->format('H:i:s') }}">
 
 
 
@@ -114,7 +139,8 @@
                             <!-- COLUMNA IZQUIERDA: CONFIGURACIÓN DE LA GESTIÓN -->
                             <div class="space-y-4">
                                 <div>
-                                    <label class="block text-xs font-bold uppercase text-slate-600 mb-1">Gestión</label>
+                                    <label
+                                        class="block text-xs font-bold uppercase text-slate-600 mb-1">Gestión</label>
                                     <select id="select-tipcon" name="tipcon"
                                         class="w-full rounded-lg border border-slate-300 p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
                                         <option value="">-- SELECCIONE GESTION --</option>
@@ -150,7 +176,8 @@
                                 </div>
 
                                 <div id="seccion-promesa"
-                                    class="hidden bg-emerald-50/60 border border-emerald-200 rounded-xl p-5 space-y-4 transition-all" data-disabled-inicial>
+                                    class="hidden bg-emerald-50/60 border border-emerald-200 rounded-xl p-5 space-y-4 transition-all"
+                                    data-disabled-inicial>
                                     <div class="flex items-center gap-2 border-b border-emerald-200/60 pb-2">
                                         <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor"
                                             viewBox="0 0 24 24">
@@ -166,15 +193,15 @@
                                         <div>
                                             <label
                                                 class="block text-[11px] font-bold uppercase text-emerald-800 mb-1">Fecha
-                                                Confirmacion</label>
-                                            <input type="date" name="fecha_promesa"
+                                                Promesa</label>
+                                            <input type="date" id="fecha_promesa_input" name="fecha_promesa"
                                                 class="w-full rounded-lg border border-emerald-300 p-2 bg-white text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                                         </div>
 
                                         <div>
                                             <label
                                                 class="block text-[11px] font-bold uppercase text-emerald-800 mb-1">Monto
-                                                Confirmacion</label>
+                                                Promesa</label>
                                             <input type="number" step="0.01" name="monto_promesa"
                                                 placeholder="0.00"
                                                 class="w-full rounded-lg border border-emerald-300 p-2 bg-white text-slate-900 text-xs font-bold focus:ring-2 focus:ring-emerald-500 focus:outline-none">
@@ -211,7 +238,7 @@
                                             <label
                                                 class="block text-[11px] font-bold uppercase text-emerald-800 mb-1">Fecha
                                                 Confirmacion</label>
-                                            <input type="date" name="fecha_promesa"
+                                            <input type="date" id="fecha_confirmacion_input" name="fecha_promesa"
                                                 class="w-full rounded-lg border border-emerald-300 p-2 bg-white text-slate-800 text-xs focus:ring-2 focus:ring-emerald-500 focus:outline-none">
                                         </div>
 
@@ -336,13 +363,53 @@
                                         @endforeach
                                     </select>
                                 </div>
+                                <!-- SECCIÓN AGENDAR LLAMADA -->
+                                <div class="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-3">
+                                    <!-- Toggle / Checkbox para activar -->
+                                    <div class="flex items-center justify-between">
+                                        <label for="check-agendar"
+                                            class="flex items-center gap-2.5 cursor-pointer select-none">
+                                            <input type="checkbox" id="check-agendar" name="agendar" value="1"
+                                                class="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500 transition-all cursor-pointer">
+                                            <span
+                                                class="text-xs font-bold uppercase text-slate-700 tracking-wide">Agendar
+                                                próxima llamada</span>
+                                        </label>
+                                        <span class="text-[11px] text-slate-500 font-medium">Recordatorio en
+                                            agenda</span>
+                                    </div>
+
+                                    <!-- Contenedor desplegable (Oculto por defecto) -->
+                                    <div id="seccion-agendar"
+                                        class="hidden grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2 border-t border-slate-200/60">
+                                        <div>
+                                            <label for="fec_agenda"
+                                                class="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                                                Fecha Agendado
+                                            </label>
+                                            <input type="date" id="fec_agenda" name="fec_agenda" disabled
+                                                class="w-full rounded-lg border border-slate-300 p-2 bg-white text-slate-800 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all">
+                                        </div>
+
+                                        <div>
+                                            <label for="hor_agenda"
+                                                class="block text-[11px] font-bold uppercase text-slate-600 mb-1">
+                                                Hora Agendado
+                                            </label>
+                                            <input type="time" id="hor_agenda" name="hor_agenda" disabled
+                                                class="w-full rounded-lg border border-slate-300 p-2 bg-white text-slate-800 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all">
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                         </div>
 
 
                         <!-- CONTENEDOR DE ERRORES -->
-                        <div id="errores-gestion" class="hidden bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-lg p-3 space-y-1"></div>
+                        <div id="errores-gestion"
+                            class="hidden bg-red-50 border border-red-200 text-red-700 text-xs font-semibold rounded-lg p-3 space-y-1">
+                        </div>
 
 
 

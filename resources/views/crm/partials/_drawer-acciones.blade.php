@@ -157,7 +157,7 @@
                                 </svg>
                             </button>
 
-                            <button type="button" onclick="mostrarFormularioCondicion()"
+                            {{-- <button type="button" onclick="mostrarFormularioCondicion()"
                                 class="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 text-slate-700 hover:text-blue-700 text-xs font-bold transition-all group">
                                 <span>Cambiar Condición [5]</span>
                                 <svg class="w-4 h-4 text-slate-400 group-hover:text-blue-600" fill="none"
@@ -165,11 +165,11 @@
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                                         d="M9 5l7 7-7 7" />
                                 </svg>
-                            </button>
+                            </button> --}}
                         </div>
 
                         <!-- Formulario Interno para Condición (Oculto por defecto) -->
-                        <div id="sub-menu-condicion" class="space-y-4 hidden">
+                        {{-- <div id="sub-menu-condicion" class="space-y-4 hidden">
                             <div class="flex items-center justify-between pb-2 border-b border-slate-100">
                                 <span class="text-xs font-bold text-slate-700 uppercase">Cambiar Condición</span>
                                 <button type="button" onclick="ocultarFormularioCondicion()"
@@ -198,7 +198,7 @@
                                 </svg>
                                 Guardar Cambio
                             </button>
-                        </div>
+                        </div> --}}
                     </div>
 
                 </div>

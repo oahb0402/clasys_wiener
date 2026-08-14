@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Agenda;
 use App\Models\G110;
 use Illuminate\Support\Facades\DB; // <-- Importamos DB si no usas un modelo para los controles
 use App\Models\G220;
@@ -93,23 +94,31 @@ class ClasysController extends Controller
             ->get();
 
         // Obtener solo los códigos de promesas como un array: ['21', '22', '31']
-        $codigosPromesaX = DB::table('r_respuestas_x')
-            ->where('tipo', 'PROMESA')
-            ->pluck('codigo')
-            ->toArray();
+        $codigosPromesaX = $this->obtenerCodigosPromesa();
 
         // Obtener solo los códigos de confirmacion como un array: ['21', '22', '31']
-        $codigosConfirmacionX = DB::table('r_respuestas_x')
-            ->where('tipo', 'CONFIRMACION')
-            ->pluck('codigo')
-            ->toArray();
-
+        $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
 
         // Pasamos el $id del cliente de forma segura en un arreglo de parámetros
         $telefonosSugeridos = [];
         /* $telefonosSugeridos = DB::select('SELECT * FROM f_telefonos_totales_banco_cod_deu(:cod_deu)', [
         'cod_deu' => $id
         ]); */
+
+        // Buscamos si existe alguna promesa activa para este cliente en g220
+        $promesaActivaQuery = DB::table('g220')
+            ->where('cod_deu', $cliente->cod_deu)
+            ->whereIn('tip_rb', $codigosPromesaX)
+            ->where('fec_reg', '>=', now()->format('Y-m-d'))
+            ->orderBy('item', 'desc')
+            ->first();
+
+        // Mapeamos los datos de la promesa para la vista
+        $promesaActiva = $promesaActivaQuery ? [
+            'existe' => true,
+            'fecha'  => $promesaActivaQuery->fec_reg ?? null,
+            'monto'  => $promesaActivaQuery->mon_pro ?? null,
+        ] : null;
 
 
 
@@ -164,10 +173,10 @@ class ClasysController extends Controller
             'codigosConfirmacionX' => $codigosConfirmacionX,
             'condiciones' => $condiciones,
             'telefonosSugeridos' => $telefonosSugeridos,
-            'paramsLlamada' => $paramsLlamada
+            'paramsLlamada' => $paramsLlamada,
+            'promesaActiva' => $promesaActiva
         ]);
     }
-
 
 
     // === 1. Helper reusable — agrégalo como método privado de la clase ===
@@ -393,7 +402,8 @@ class ClasysController extends Controller
 
     public function guardarGestion(Request $request, $id)
     {
-        $this->validarGestion($request);
+        // Pasamos $id a validarGestion para que pueda consultar las promesas del cliente
+        $this->validarGestion($request, $id);
 
         $cliente = G110::findOrFail($id);
         // Leemos la variable 'accion' que envían tus botones
@@ -438,10 +448,48 @@ class ClasysController extends Controller
                 ];
             }
 
+            // 1. Validar los datos recibidos desde la interfaz
+            $validated = $request->validate([
+                'fec_agenda' => 'required_if:agendar,1|nullable|date',
+                'hor_agenda' => 'required_if:agendar,1|nullable|date_format:H:i',
+            ]);
+            // 2. Registrar en la tabla `agendas` solo si se marcó el checkbox
+            if ($request->boolean('agendar')) {
+                Agenda::create([
+                    'cod_deu'         => $cuenta->cod_deu,
+                    'fecha'           => $validated['fec_agenda'],
+                    'hora'            => $validated['hor_agenda'],
+                    'usuario'         => $request->input('usuario'),
+                    'obs'             => $request->input('comentario'),
+                    'cartera'         => $cuenta->cod_ban,
+                    'cod_ban'         => $cuenta->cod_ban,
+                    'usuario_creador' => $request->input('usuario'),
+                ]);
+            }
+
             return $items;
         });
 
         $total = count($itemsRegistrados);
+
+        // 1. OBTENER LOS CÓDIGOS LLAMANDO AL MÉTODO AUXILIAR
+        $codigosPromesaX = $this->obtenerCodigosPromesa();
+        // 2. Verificar si la gestión guardada es una Promesa
+        $codigoControl = trim($request->input('control', ''));
+        $esPromesa = in_array($codigoControl, $codigosPromesaX, true);
+
+        // 3. Estructurar los datos de la promesa para la respuesta JSON
+        $promesaActivaData = null;
+        if ($esPromesa) {
+            $montoRaw = $request->input('monto_promesa');
+            // Formatea a 2 decimales (ej: 2.00 o 1,500.50)
+            $montoFormateado = is_numeric($montoRaw) ? number_format((float)$montoRaw, 2, '.', ',') : null;
+            $promesaActivaData = [
+                'existe' => true,
+                'fecha'  => $request->input('fecha_promesa'),
+                'monto'  => $montoFormateado,
+            ];
+        }
 
         return response()->json([
             'success' => true,
@@ -450,8 +498,11 @@ class ClasysController extends Controller
                 : 'Gestión registrada correctamente.',
             'items'   => $itemsRegistrados,
             'accion'  => $accion,
+            'promesa_activa' => $promesaActivaData
+
         ], 201);
     }
+
     public function actualizarGestion(Request $request, $id, $item)
     {
         // Se recomienda agregar validación previa
@@ -475,8 +526,7 @@ class ClasysController extends Controller
         ]);
     }
 
-
-    protected function validarGestion(Request $request): void
+    protected function validarGestion(Request $request, $clienteId = null): void
     {
         $request->validate([
             'tipcon'    => 'required|string',
@@ -484,6 +534,62 @@ class ClasysController extends Controller
             'usuario'   => 'required|string',
             'telef_ges' => 'nullable|string|max:15',
         ]);
+
+        // OBTENER LOS CÓDIGOS DE PROMESA
+        $codigosPromesa = $this->obtenerCodigosPromesa();
+        $codigosConfirmacion = $this->obtenerCodigosConfirmacion(); // Si aplica
+
+        $codigoControl  = trim($request->input('control', ''));
+        $fechaPromesa        = $request->input('fecha_promesa');
+
+        $hoy    = now()->toDateString();
+        $manana = now()->addDay()->toDateString();
+
+        // Validar rango para Secciones de Promesa (Hoy y Mañana)
+        if (in_array($codigoControl, $codigosPromesa, true) && $fechaPromesa) {
+            if ($fechaPromesa < $hoy || $fechaPromesa > $manana) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'fecha_promesa' => ['La fecha de la promesa solo puede ser hoy o mañana.']
+                ]);
+            }
+        }
+
+        // Validar rango para Secciones de Confirmación (Desde el 1 del mes hasta hoy)
+        if (in_array($codigoControl, $codigosConfirmacion, true) && $fechaPromesa) {
+            $inicioMes = now()->startOfMonth()->toDateString();
+
+            if ($fechaPromesa < $inicioMes || $fechaPromesa > $hoy) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'fecha_promesa' => ['La fecha de confirmación debe pertenecer al mes en curso hasta el día de hoy.']
+                ]);
+            }
+        }
+
+        // SI LA GESTIÓN ACTUAL ES UNA PROMESA
+        if (in_array($codigoControl, $codigosPromesa, true)) {
+            // Obtenemos el cod_deu enviado o buscando en el cliente
+            $codDeu = $request->input('cod_deu');
+
+            if (!$codDeu && $clienteId) {
+                $codDeu = DB::table('g110')->where('cod_deu', $clienteId)->value('cod_deu');
+            }
+
+            if ($codDeu) {
+                // Verificar si el cliente ya registra una promesa en la tabla g220
+                $tienePromesaActiva = DB::table('g220')
+                    ->where('cod_deu', $codDeu)
+                    ->where('tip_rb', $codigoControl)
+                    //->whereIn('tip_rb', $codigosPromesa)
+                    ->where('fec_reg', '>=', now()->format('Y-m-d'))
+                    ->exists();
+
+                if ($tienePromesaActiva) {
+                    throw \Illuminate\Validation\ValidationException::withMessages([
+                        'control' => ["El cliente ya cuenta con una promesa activa bajo el código {$codigoControl}. No es posible repetir esta gestión."]
+                    ]);
+                }
+            }
+        }
     }
 
     /**
