@@ -2,7 +2,7 @@ import { toggleDrawer, cerrarDrawer, cambiarTabDrawer, initDrawerAtajos, guardar
 import { abrirModalModificar, cerrarModalModificar, mostrarFormularioCondicion, ocultarFormularioCondicion, editarGestion } from './modal-modificar';
 import { abrirHistorial, cerrarModalHistorial, cargarPaginaHistorial } from './historial';
 import { cargarPaginaGestionesEditar } from './gestiones-editar';
-import { setComentario, resetSeccionAgendar,initPanelGestion,actualizarAlertaPromesaActiva,configurarLimiteFechas } from './panel-gestion';
+import { setComentario, resetSeccionAgendar,initPanelGestion,actualizarAlertaPromesaActiva,configurarLimiteFechas, actualizarAlertaConfirmacionActiva } from './panel-gestion';
 import { initFormGestionSubmit, cancelarEdicionGestion } from './gestion-submit';
 
 window.cancelarEdicionGestion = cancelarEdicionGestion;
@@ -27,6 +27,7 @@ window.setComentario = setComentario;
 window.editarGestion = editarGestion;
 window.resetSeccionAgendar = resetSeccionAgendar; // <-- Expuesto a window
 window.actualizarAlertaPromesaActiva = actualizarAlertaPromesaActiva; // <-- Expuesto a window
+window.actualizarAlertaPromesaActiva = actualizarAlertaConfirmacionActiva; // <-- Expuesto a window
 
 
 

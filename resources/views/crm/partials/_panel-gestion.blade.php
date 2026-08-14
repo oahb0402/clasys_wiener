@@ -121,7 +121,7 @@
                     <form id="form-gestion" action="#" method="POST" enctype="multipart/form-data" novalidate
                         class="space-y-6">
                         @csrf
-                        <input type="hidden" name="cliente_id" value="{{ $cliente->id }}">
+                        <input type="hidden" name="cliente_id" value="{{ $cliente->cod_deu }}">
                         <input type="hidden" id="editar_item_id" name="item_id" value="">
                         <input type="hidden" id="control_grupo" name="control_grupo" value="">
                         <input type="hidden" name="usuario" value="{{ $paramsLlamada['uid'] }}">

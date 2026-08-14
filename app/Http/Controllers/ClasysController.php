@@ -4,157 +4,165 @@ namespace App\Http\Controllers;
 
 use App\Models\Agenda;
 use App\Models\G110;
+
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
+
 use Illuminate\Support\Facades\DB; // <-- Importamos DB si no usas un modelo para los controles
 use App\Models\G220;
 use App\Models\G220Sms;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
+
+
+
+
 class ClasysController extends Controller
 {
     public function index(Request $request)
-{
-    // 1. Obtiene cod_deu de la Query String ?cod_deu=... o ?id=...
-    $id = $request->query('cod_deu') ?? $request->query('id');
+    {
+        // 1. Obtiene cod_deu de la Query String ?cod_deu=... o ?id=...
+        $id = $request->query('cod_deu') ?? $request->query('id');
 
-    if (!$id) {
-        abort(400, 'El parámetro cod_deu es requerido en la URL.');
-    }
+        if (!$id) {
+            abort(400, 'El parámetro cod_deu es requerido en la URL.');
+        }
 
-    // 2. Buscamos el cliente especificando el campo cod_deu
-    $cliente = G110::with('detalles')
-        ->where('cod_deu', $id)
-        ->firstOrFail();
+        // 2. Buscamos el cliente especificando el campo cod_deu
+        $cliente = G110::with('detalles')
+            ->where('cod_deu', $id)
+            ->firstOrFail();
 
-    // Captura los datos enviados por el marcador predictivo
-    $paramsLlamada = [
-        'telf'              => $request->query('telf'),
-        'uid'               => $request->query('uid'),
-        'campania'          => $request->query('campania'),
-        'idllamada'         => $request->query('idllamada'),
-        'extension'         => $request->query('extension'),
-        'accion_predictivo' => $request->query('accion_predictivo'),
-    ];
+        // Captura los datos enviados por el marcador predictivo
+        $paramsLlamada = [
+            'telf'              => $request->query('telf'),
+            'uid'               => $request->query('uid'),
+            'campania'          => $request->query('campania'),
+            'idllamada'         => $request->query('idllamada'),
+            'extension'         => $request->query('extension'),
+            'accion_predictivo' => $request->query('accion_predictivo'),
+        ];
 
-    // Buscar en g110 otros clientes/cuentas con el mismo nro_doc
-    $otrasCuentas = collect();
-    if (!empty($cliente->nro_doc)) {
-        $otrasCuentas = G110::select('cod_deu', 'grupo', 'condicion', 'nro_cta', 'ult_mov', 'fec_ini')
-            ->where('nro_doc', trim($cliente->nro_doc))
-            ->where('cod_deu', '!=', $cliente->cod_deu)
+        // Buscar en g110 otros clientes/cuentas con el mismo nro_doc
+        $otrasCuentas = collect();
+        if (!empty($cliente->nro_doc)) {
+            $otrasCuentas = G110::select('cod_deu', 'grupo', 'condicion', 'nro_cta', 'ult_mov', 'fec_ini')
+                ->where('nro_doc', trim($cliente->nro_doc))
+                ->where('cod_deu', '!=', $cliente->cod_deu)
+                ->get();
+        }
+
+        // Recibos pendientes
+        $recibos = $cliente->detalles->where('estado', '');
+
+        // Listados de catálogos f190
+        $tipo_gestiones = DB::table('f190')
+            ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
+            ->where('activo', '1')
+            ->whereIn('codigo', ['TBTM', 'TBTC', 'TBML', 'TBMT', 'TBWA'])
+            ->orderBy('descri', 'asc')
             ->get();
+
+        $tipo_contactos = DB::table('f190')
+            ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
+            ->where('activo', '1')
+            ->where('codigo', 'LIKE', 'UN%')
+            ->orderBy('descri', 'asc')
+            ->get();
+
+        // Respuestas y Sub-respuestas
+        $respuestas = DB::table('respuestas')
+            ->select('codigo', 'descrip', 'corta', 'promesa')
+            ->where('activo', '1')
+            ->where('tipo', 'TELEFONO')
+            ->orderBy('corta', 'asc')
+            ->orderBy('descrip', 'asc')
+            ->get()
+            ->groupBy('corta');
+
+        $sub_respuestas = DB::table('sub_respuestas')
+            ->select('codigo', 'descrip')
+            ->where('activo', '1')
+            ->where('tipo', 'TELEFONO')
+            ->orderByRaw('codigo::int ASC')
+            ->get();
+
+        // Condiciones activas
+        $condiciones = DB::table('condiciong110')
+            ->select(DB::raw('TRIM(codigo) as codigo'), 'descrip')
+            ->where('activo', '1')
+            ->whereNotIn(DB::raw('TRIM(codigo)'), ['AC', 'AG', 'AJ', 'AD', 'BQ', 'DB', 'DV', 'DC', 'EP', 'RF', 'SS', 'IF', 'IT', 'IN', 'MN', 'NG', 'NM', 'ND', 'NT', 'PC', 'PT', 'PH', 'PU', 'X1', 'Y1', 'PF', 'PV', 'VF', 'RR', 'RW', 'SM', 'ST', 'UT', 'UF', 'UM', 'UG', 'IC', 'RN', 'UP', 'ZP', 'CA'])
+            ->orderBy('descrip', 'asc')
+            ->get();
+
+        // Arrays de Promesas y Confirmaciones
+        $codigosPromesaX = $this->obtenerCodigosPromesa();
+        $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
+
+        $telefonosSugeridos = [];
+
+        // Promesa activa en g220
+        $promesaActivaQuery = DB::table('g220')
+            ->where('cod_deu', $cliente->cod_deu)
+            ->whereIn('tip_rb', $codigosPromesaX)
+            ->where('fec_reg', '>=', now()->format('Y-m-d'))
+            ->orderBy('item', 'desc')
+            ->first();
+
+        $promesaActiva = $promesaActivaQuery ? [
+            'existe' => true,
+            'fecha'  => $promesaActivaQuery->fec_reg ?? null,
+            'monto'  => $promesaActivaQuery->mon_pro ?? null,
+        ] : null;
+
+        // Métricas rápidas
+        $historialRapido = [
+            'total' => $cliente->gestiones()
+                ->whereNotIn('tip_con', ['IV', 'ML'])
+                ->count(),
+
+            'positives' => $cliente->gestiones()
+                ->whereNotIn('tip_con', ['IV', 'ML'])
+                ->whereIn('corta', ['CEF', 'CNE'])
+                ->count(),
+
+            'ivr' => $cliente->gestiones()
+                ->where('tip_con', 'IV')
+                ->count(),
+
+            'mail' => $cliente->gestiones()
+                ->whereIn('tip_con', ['ML'])
+                ->count(),
+
+            'sms' => $cliente->gestiones_sms()
+                ->count(),
+
+            'abono' => 0
+        ];
+
+        // Días al cierre
+        $fechaCierre = Carbon::create(2026, 12, 31);
+        $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
+
+        return view('crm.principal', [
+            'cliente'              => $cliente,
+            'otrasCuentas'         => $otrasCuentas,
+            'recibos'              => $recibos,
+            'historialRapido'      => $historialRapido,
+            'diasParaCierre'       => $diasParaCierre,
+            'tipo_gestiones'       => $tipo_gestiones,
+            'tipo_contactos'       => $tipo_contactos,
+            'respuestas'           => $respuestas,
+            'sub_respuestas'       => $sub_respuestas,
+            'codigosPromesaX'      => $codigosPromesaX,
+            'codigosConfirmacionX' => $codigosConfirmacionX,
+            'condiciones'          => $condiciones,
+            'telefonosSugeridos'   => $telefonosSugeridos,
+            'paramsLlamada'        => $paramsLlamada,
+            'promesaActiva'        => $promesaActiva
+        ]);
     }
-
-    // Recibos pendientes
-    $recibos = $cliente->detalles->where('estado', '');
-
-    // Listados de catálogos f190
-    $tipo_gestiones = DB::table('f190')
-        ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
-        ->where('activo', '1')
-        ->whereIn('codigo', ['TBTM', 'TBTC', 'TBML', 'TBMT', 'TBWA'])
-        ->orderBy('descri', 'asc')
-        ->get();
-
-    $tipo_contactos = DB::table('f190')
-        ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
-        ->where('activo', '1')
-        ->where('codigo', 'LIKE', 'UN%')
-        ->orderBy('descri', 'asc')
-        ->get();
-
-    // Respuestas y Sub-respuestas
-    $respuestas = DB::table('respuestas')
-        ->select('codigo', 'descrip', 'corta', 'promesa')
-        ->where('activo', '1')
-        ->where('tipo', 'TELEFONO')
-        ->orderBy('corta', 'asc')
-        ->orderBy('descrip', 'asc')
-        ->get()
-        ->groupBy('corta');
-
-    $sub_respuestas = DB::table('sub_respuestas')
-        ->select('codigo', 'descrip')
-        ->where('activo', '1')
-        ->where('tipo', 'TELEFONO')
-        ->orderByRaw('codigo::int ASC')
-        ->get();
-
-    // Condiciones activas
-    $condiciones = DB::table('condiciong110')
-        ->select(DB::raw('TRIM(codigo) as codigo'), 'descrip')
-        ->where('activo', '1')
-        ->whereNotIn(DB::raw('TRIM(codigo)'), ['AC', 'AG', 'AJ', 'AD', 'BQ', 'DB', 'DV', 'DC', 'EP', 'RF', 'SS', 'IF', 'IT', 'IN', 'MN', 'NG', 'NM', 'ND', 'NT', 'PC', 'PT', 'PH', 'PU', 'X1', 'Y1', 'PF', 'PV', 'VF', 'RR', 'RW', 'SM', 'ST', 'UT', 'UF', 'UM', 'UG', 'IC', 'RN', 'UP', 'ZP', 'CA'])
-        ->orderBy('descrip', 'asc')
-        ->get();
-
-    // Arrays de Promesas y Confirmaciones
-    $codigosPromesaX = $this->obtenerCodigosPromesa();
-    $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
-
-    $telefonosSugeridos = [];
-
-    // Promesa activa en g220
-    $promesaActivaQuery = DB::table('g220')
-        ->where('cod_deu', $cliente->cod_deu)
-        ->whereIn('tip_rb', $codigosPromesaX)
-        ->where('fec_reg', '>=', now()->format('Y-m-d'))
-        ->orderBy('item', 'desc')
-        ->first();
-
-    $promesaActiva = $promesaActivaQuery ? [
-        'existe' => true,
-        'fecha'  => $promesaActivaQuery->fec_reg ?? null,
-        'monto'  => $promesaActivaQuery->mon_pro ?? null,
-    ] : null;
-
-    // Métricas rápidas
-    $historialRapido = [
-        'total' => $cliente->gestiones()
-            ->whereNotIn('tip_con', ['IV', 'ML'])
-            ->count(),
-
-        'positives' => $cliente->gestiones()
-            ->whereNotIn('tip_con', ['IV', 'ML'])
-            ->whereIn('corta', ['CEF', 'CNE'])
-            ->count(),
-
-        'ivr' => $cliente->gestiones()
-            ->where('tip_con', 'IV')
-            ->count(),
-
-        'mail' => $cliente->gestiones()
-            ->whereIn('tip_con', ['ML'])
-            ->count(),
-
-        'sms' => $cliente->gestiones_sms()
-            ->count(),
-
-        'abono' => 0
-    ];
-
-    // Días al cierre
-    $fechaCierre = Carbon::create(2026, 12, 31);
-    $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
-
-    return view('crm.principal', [
-        'cliente'              => $cliente,
-        'otrasCuentas'         => $otrasCuentas,
-        'recibos'              => $recibos,
-        'historialRapido'      => $historialRapido,
-        'diasParaCierre'       => $diasParaCierre,
-        'tipo_gestiones'       => $tipo_gestiones,
-        'tipo_contactos'       => $tipo_contactos,
-        'respuestas'           => $respuestas,
-        'sub_respuestas'       => $sub_respuestas,
-        'codigosPromesaX'      => $codigosPromesaX,
-        'codigosConfirmacionX' => $codigosConfirmacionX,
-        'condiciones'          => $condiciones,
-        'telefonosSugeridos'   => $telefonosSugeridos,
-        'paramsLlamada'        => $paramsLlamada,
-        'promesaActiva'        => $promesaActiva
-    ]);
-}
 
 
     // === 1. Helper reusable — agrégalo como método privado de la clase ===
@@ -380,20 +388,23 @@ class ClasysController extends Controller
 
     public function guardarGestion(Request $request, $id)
     {
-        // Pasamos $id a validarGestion para que pueda consultar las promesas del cliente
+        // Pasamos $id a validarGestion para consultar las promesas del cliente
         $this->validarGestion($request, $id);
 
-        $cliente = G110::findOrFail($id);
-        // Leemos la variable 'accion' que envían tus botones
-        $accion  = $request->input('accion', 'grabar');
+        // Buscar al cliente (especificando 'cod_deu' para evitar problemas con la clave primaria)
+        $cliente = G110::where('cod_deu', $id)->firstOrFail();
 
+        // Leemos la variable 'accion' que envían tus botones ('grabar' o 'multiple')
+        $accion = $request->input('accion', 'grabar');
+
+        // 1. Guardar en Base de Datos (Gestión + Agendas)
         $itemsRegistrados = DB::transaction(function () use ($request, $cliente, $accion) {
             $items = [];
 
-            // 1. Incluimos siempre la cuenta cliente principal
+            // Incluimos siempre la cuenta cliente principal
             $cuentasAProcesar = collect([$cliente]);
 
-            // 2. Si es 'multiple', buscamos todas las demás cuentas registradas bajo el mismo nro_doc en g110
+            // Si es 'multiple', buscamos todas las demás cuentas bajo el mismo nro_doc
             if ($accion === 'multiple' && !empty($cliente->nro_doc)) {
                 $otrasCuentas = G110::where('nro_doc', trim($cliente->nro_doc))
                     ->where('cod_deu', '!=', $cliente->cod_deu)
@@ -402,7 +413,7 @@ class ClasysController extends Controller
                 $cuentasAProcesar = $cuentasAProcesar->merge($otrasCuentas);
             }
 
-            // 3. Iteramos para guardar en g220 de cada cuenta
+            // Iteramos para guardar en g220 de cada cuenta
             foreach ($cuentasAProcesar as $cuenta) {
                 $siguienteItem = DB::selectOne(
                     "SELECT nuevo_item_por_codigo(?) AS item",
@@ -426,21 +437,22 @@ class ClasysController extends Controller
                 ];
             }
 
-            // 1. Validar los datos recibidos desde la interfaz
+            // Validar los datos de agendamiento
             $validated = $request->validate([
                 'fec_agenda' => 'required_if:agendar,1|nullable|date',
                 'hor_agenda' => 'required_if:agendar,1|nullable|date_format:H:i',
             ]);
-            // 2. Registrar en la tabla `agendas` solo si se marcó el checkbox
+
+            // Registrar en la tabla `agendas` solo si se marcó el checkbox
             if ($request->boolean('agendar')) {
                 Agenda::create([
-                    'cod_deu'         => $cuenta->cod_deu,
+                    'cod_deu'         => $cliente->cod_deu,
                     'fecha'           => $validated['fec_agenda'],
                     'hora'            => $validated['hor_agenda'],
                     'usuario'         => $request->input('usuario'),
                     'obs'             => $request->input('comentario'),
-                    'cartera'         => $cuenta->cod_ban,
-                    'cod_ban'         => $cuenta->cod_ban,
+                    'cartera'         => $cliente->cod_ban,
+                    'cod_ban'         => $cliente->cod_ban,
                     'usuario_creador' => $request->input('usuario'),
                 ]);
             }
@@ -448,36 +460,59 @@ class ClasysController extends Controller
             return $items;
         });
 
+        // 2. Consumir y Registrar en Konnexia (Solo si viene desde una llamada del marcador)
+        $konnexiaRes = null;
+        if ($request->filled('comenta2')) {
+            $konnexiaRes = $this->enviarAKonnexia($request);
+        }
+
+        // 3. Evaluar respuesta de Promesa y Confirmación para el Frontend
         $total = count($itemsRegistrados);
-
-        // 1. OBTENER LOS CÓDIGOS LLAMANDO AL MÉTODO AUXILIAR
-        $codigosPromesaX = $this->obtenerCodigosPromesa();
-        // 2. Verificar si la gestión guardada es una Promesa
         $codigoControl = trim($request->input('control', ''));
-        $esPromesa = in_array($codigoControl, $codigosPromesaX, true);
 
-        // 3. Estructurar los datos de la promesa para la respuesta JSON
+        // --- EVALUACIÓN DE PROMESA ---
+        $codigosPromesaX = $this->obtenerCodigosPromesa();
+        $esPromesa       = in_array($codigoControl, $codigosPromesaX, true);
+
         $promesaActivaData = null;
         if ($esPromesa) {
-            $montoRaw = $request->input('monto_promesa');
-            // Formatea a 2 decimales (ej: 2.00 o 1,500.50)
-            $montoFormateado = is_numeric($montoRaw) ? number_format((float)$montoRaw, 2, '.', ',') : null;
+            $montoPromesaRaw = $request->input('monto_promesa');
+            $montoPromesaFormateado = is_numeric($montoPromesaRaw) ? number_format((float)$montoPromesaRaw, 2, '.', ',') : null;
+
             $promesaActivaData = [
                 'existe' => true,
-                'fecha'  => $request->input('fecha_promesa'),
-                'monto'  => $montoFormateado,
+                'fecha'  => $request->input('fecha_promesa_input') ?? $request->input('fecha_promesa'),
+                'monto'  => $montoPromesaFormateado,
             ];
         }
 
+        // --- EVALUACIÓN DE CONFIRMACIÓN ---
+        $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
+        $esConfirmacion       = in_array($codigoControl, $codigosConfirmacionX, true);
+
+        $confirmacionActivaData = null;
+        if ($esConfirmacion) {
+            $montoConfRaw = $request->input('monto_confirmacion');
+            $montoConfFormateado = is_numeric($montoConfRaw) ? number_format((float)$montoConfRaw, 2, '.', ',') : null;
+
+            $confirmacionActivaData = [
+                'existe'             => true,
+                'fecha_confirmacion' => $request->input('fecha_confirmacion_input') ?? $request->input('fecha_confirmacion'),
+                'monto_confirmacion' => $montoConfFormateado,
+            ];
+        }
+
+        // 4. Retornar Respuesta Unificada
         return response()->json([
-            'success' => true,
-            'mensaje' => ($accion === 'multiple' && $total > 1)
+            'success'             => true,
+            'mensaje'             => ($accion === 'multiple' && $total > 1)
                 ? "Gestión registrada exitosamente en {$total} cuentas vinculadas."
                 : 'Gestión registrada correctamente.',
-            'items'   => $itemsRegistrados,
-            'accion'  => $accion,
-            'promesa_activa' => $promesaActivaData
-
+            'items'               => $itemsRegistrados,
+            'accion'              => $accion,
+            'promesa_activa'      => $promesaActivaData,
+            'confirmacion_activa' => $confirmacionActivaData,
+            'konnexia'            => $konnexiaRes
         ], 201);
     }
 
@@ -641,5 +676,114 @@ class ClasysController extends Controller
             'hora'      => now()->format('H:i'),
             'usuario'   => $request->input('usuario'),
         ]);
+    }
+
+
+    /**
+     * Envía la finalización de la llamada a la API de Konnexia y registra el Log en la BD.
+     */
+
+
+
+    private function enviarAKonnexia(Request $request): array
+    {
+        $url = "https://clasa.konnexiacloud.com/api/ucm/integrations/finalize";
+        $apiKey = "9e0bb019e020faed43f0ef36e6329bf75fab555064e5012735ad69fe1a577f38";
+
+        // 1. Estructura de Callback / Agenda (Solo si agendar es verdadero)
+        $callbackAt = null;
+        if ($request->boolean('agendar') && $request->filled('fec_agenda')) {
+            $fecAgenda = $request->input('fec_agenda');
+            $horAgenda = substr($request->input('hor_agenda', '00:00'), 0, 5);
+
+            $fechaAgendaFormatted = date('d-m-Y', strtotime(str_replace('/', '-', $fecAgenda)));
+            $callbackAt = "{$fechaAgendaFormatted} {$horAgenda}";
+        }
+
+        // 2. Estructura del Payload Base
+        $payload = [
+            'callId'        => $request->input('comenta2'),
+            'metadata'      => (object) [], // Objeto vacío {}
+            'callbackAt'    => $callbackAt,
+            'disposition'   => [
+                'level1'  => $request->input('control_grupo'),
+                'level2'  => $request->input('control'),
+                'level3'  => $request->input('level3', ''),
+                'comment' => $request->input('comentario'),
+            ],
+            'agentUsername' => $request->input('usuario'),
+        ];
+
+        // 3. Incluir 'promise' ÚNICAMENTE si hay fecha de promesa
+        if ($request->filled('fecha_promesa')) {
+            $fecPromesa = $request->input('fecha_promesa');
+
+            // Formatear fecha a DD-MM-YYYY (ejemplo: 24-06-2026)
+            $fechaFormatted = date('d-m-Y', strtotime(str_replace('/', '-', $fecPromesa)));
+
+            // Formatear monto a 2 decimales string (ej: "1003.00")
+            $montoRaw = $request->input('monto_promesa');
+            $montoFormatted = is_numeric($montoRaw)
+                ? number_format((float)$montoRaw, 2, '.', '')
+                : "0.00";
+
+            // Mapear Moneda
+            $monedaRaw = strtoupper($request->input('moneda_promesa', 'SOLES'));
+            $moneda = ($monedaRaw === 'S' || $monedaRaw === 'SOLES') ? 'SOLES' : 'DOLARES';
+
+            $payload['promise'] = [
+                'date'     => $fechaFormatted,
+                'amount'   => $montoFormatted,
+                'currency' => $moneda,
+            ];
+        }
+
+        try {
+            $response = Http::withHeaders([
+                'Content-Type'       => 'application/json',
+                'Accept'             => '*/*',
+                'X-Integration-Key' => $apiKey,
+            ])->post($url, $payload);
+
+            $statusCode   = $response->status();
+            $responseBody = $response->body();
+
+            // Registrar auditoría en PostgreSQL
+            DB::table('log_integracion_konnexia')->insert([
+                'call_id'       => $payload['callId'],
+                'agente'        => $payload['agentUsername'],
+                'categoria'     => $payload['disposition']['level1'],
+                'subcategoria'  => $payload['disposition']['level2'],
+                'comentario'    => $payload['disposition']['comment'],
+                'request_body'  => json_encode($payload),
+                'response_body' => $responseBody,
+                'status_code'   => $statusCode,
+            ]);
+
+            return [
+                'exito'  => $response->successful(),
+                'status' => $statusCode,
+                'data'   => $response->json()
+            ];
+        } catch (\Exception $e) {
+            Log::error("Error consumiendo API Konnexia: " . $e->getMessage());
+
+            DB::table('log_integracion_konnexia')->insert([
+                'call_id'       => $payload['callId'] ?? null,
+                'agente'        => $payload['agentUsername'] ?? null,
+                'categoria'     => $payload['disposition']['level1'] ?? null,
+                'subcategoria'  => $payload['disposition']['level2'] ?? null,
+                'comentario'    => $payload['disposition']['comment'] ?? null,
+                'request_body'  => json_encode($payload),
+                'response_body' => json_encode(['error' => $e->getMessage()]),
+                'status_code'   => 500,
+            ]);
+
+            return [
+                'exito'  => false,
+                'status' => 500,
+                'error'  => $e->getMessage()
+            ];
+        }
     }
 }

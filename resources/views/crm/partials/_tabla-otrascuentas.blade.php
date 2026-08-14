@@ -43,7 +43,7 @@
                                 <td class="py-2.5 px-3 text-slate-700 font-normal"> {{ $cuenta->ult_mov ?? '-' }}</td>
                                 <td class="py-2.5 px-3 text-center text-slate-600 font-mono">{{ $cuenta->fec_ini ?? '-' }}</td>
                                 <td class="py-2.5 px-3 text-center">
-                                    <a href="{{ route('crm.principal', array_merge(['id' => $cuenta->cod_deu], array_filter($paramsLlamada))) }}"
+                                    <a href="{{ route('crm.principal', array_merge(['cod_deu' => $cuenta->cod_deu], array_filter($paramsLlamada))) }}"
                                    class="inline-flex items-center gap-1 text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-semibold">
                                     Ver Ficha
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">

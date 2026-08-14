@@ -1,6 +1,6 @@
 import { getClienteId } from './gestiones-editar';
 import { validarFormularioGestion } from './gestion-validacion';
-import { resetSeccionAgendar,actualizarAlertaPromesaActiva } from './panel-gestion'; // <-- Importado
+import { resetSeccionAgendar,actualizarAlertaPromesaActiva,actualizarAlertaConfirmacionActiva } from './panel-gestion'; // <-- Importado
 
 export function activarModoEdicion(itemId) {
     document.getElementById('editar_item_id').value = itemId;
@@ -87,6 +87,11 @@ export function initFormGestionSubmit() {
     // Actualiza la alerta de promesa si la respuesta la contiene
     if (res.promesa_activa) {
         actualizarAlertaPromesaActiva(res.promesa_activa);
+    }
+
+    // Actualiza alerta de Confirmación si vino en la respuesta
+    if (res.confirmacion_activa) {
+        actualizarAlertaConfirmacionActiva(res.confirmacion_activa);
     }
 
     document.getElementById('errores-gestion')?.classList.add('hidden');

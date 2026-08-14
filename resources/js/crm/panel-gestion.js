@@ -72,17 +72,21 @@ function initPromesaConfirmacionToggle() {
         if (codigoSeleccionado && codigosPromesa.includes(codigoSeleccionado)) {
             mostrarYRequerir(seccionPromesa);
             ocultarYLimpiar(seccionConfirmacion);
+            configurarLimiteFechas();
         } else if (codigoSeleccionado && codigosConfirmacion.includes(codigoSeleccionado)) {
             mostrarYRequerir(seccionConfirmacion);
             ocultarYLimpiar(seccionPromesa);
+            configurarLimiteFechas();
         } else {
             ocultarYLimpiar(seccionPromesa);
             ocultarYLimpiar(seccionConfirmacion);
+            configurarLimiteFechas();
         }
     });
     // Estado inicial: ambas ocultas y deshabilitadas
     ocultarYLimpiar(seccionPromesa);
     ocultarYLimpiar(seccionConfirmacion);
+    configurarLimiteFechas();
 }
 
 function initSubrespuestaFiltro() {
@@ -166,10 +170,26 @@ function initAgendadoToggle() {
             inputFecha.required = true;
             inputHora.required = true;
 
-            // Asigna la fecha actual por defecto si está vacía
+            const ahora = new Date();
+
+            // 1. Asigna la fecha actual por defecto en hora local si está vacía
             if (!inputFecha.value) {
-                inputFecha.value = new Date().toISOString().split('T')[0];
+                const year = ahora.getFullYear();
+                const month = String(ahora.getMonth() + 1).padStart(2, '0');
+                const day = String(ahora.getDate()).padStart(2, '0');
+                inputFecha.value = `${year}-${month}-${day}`;
             }
+
+            // 2. Asigna la HORA ACTUAL + 1 si está vacía
+            if (!inputHora.value) {
+                ahora.setHours(ahora.getHours() + 1); // Suma 1 hora (maneja automáticamente el cambio de día/medianoche)
+
+                const horas = String(ahora.getHours()).padStart(2, '0');
+                const minutos = String(ahora.getMinutes()).padStart(2, '0');
+
+                inputHora.value = `${horas}:${minutos}`;
+            }
+
         } else {
             seccionAgendar.classList.add('hidden');
             inputFecha.disabled = true;
@@ -188,7 +208,6 @@ function initAgendadoToggle() {
     inputFecha.required = false;
     inputHora.required = false;
 }
-
 export function initPanelGestion() {
     initPromesaConfirmacionToggle();
     initSubrespuestaFiltro();
@@ -252,41 +271,67 @@ export function actualizarAlertaPromesaActiva(promesa) {
     }
 }
 
+export function actualizarAlertaConfirmacionActiva(confirmacion) {
+    const contenedor = document.getElementById('confirmaciones-gestion');
+    const detalleTexto = document.getElementById('confirmacion-detalle-texto');
+
+    if (!contenedor) return;
+
+    if (confirmacion && (confirmacion.existe || typeof confirmacion === 'object')) {
+        contenedor.classList.remove('hidden');
+
+        if (detalleTexto) {
+            const fecha = confirmacion.fecha_confirmacion ?? confirmacion.fecha ?? '';
+            const rawMonto = confirmacion.monto_confirmacion ?? confirmacion.monto;
+            const monto = rawMonto ? `S/ ${rawMonto}` : '';
+
+            detalleTexto.textContent = `${fecha} ${monto ? '- ' + monto : ''}`.trim();
+        }
+    } else {
+        contenedor.classList.add('hidden');
+        if (detalleTexto) detalleTexto.textContent = '';
+    }
+}
+
 
 export function configurarLimiteFechas() {
     const inputPromesa = document.getElementById('fecha_promesa_input');
     const inputConfirmacion = document.getElementById('fecha_confirmacion_input');
 
-    // Helper para formatear 'YYYY-MM-DD'
-    const formatearFecha = (fecha) => fecha.toISOString().split('T')[0];
+    const formatearFecha = (fecha) => {
+        const year = fecha.getFullYear();
+        const month = String(fecha.getMonth() + 1).padStart(2, '0');
+        const day = String(fecha.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     const hoy = new Date();
+    const fechaHoyStr = formatearFecha(hoy);
 
-    // -------------------------------------------------------------
-    // 1. RESTRICCIÓN SECCIÓN PROMESA (Solo Hoy y Mañana)
-    // -------------------------------------------------------------
+    // 1. RESTRICCIÓN Y VALOR PROMESA
     if (inputPromesa) {
         const manana = new Date();
         manana.setDate(hoy.getDate() + 1);
 
-        const fechaMinPromesa = formatearFecha(hoy);
-        const fechaMaxPromesa = formatearFecha(manana);
+        inputPromesa.min = fechaHoyStr;
+        inputPromesa.max = formatearFecha(manana);
 
-        inputPromesa.min = fechaMinPromesa;
-        inputPromesa.max = fechaMaxPromesa;
+        // Si está vacío, le asignamos HOY inmediatamente
+        if (!inputPromesa.value) {
+            inputPromesa.value = fechaHoyStr;
+        }
     }
 
-    // -------------------------------------------------------------
-    // 2. RESTRICCIÓN SECCIÓN CONFIRMACIÓN (Todo el mes actual hasta Hoy)
-    // -------------------------------------------------------------
+    // 2. RESTRICCIÓN Y VALOR CONFIRMACIÓN
     if (inputConfirmacion) {
-        // Primer día del mes en curso
         const primerDiaMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
 
-        const fechaMinConfirmacion = formatearFecha(primerDiaMes);
-        const fechaMaxConfirmacion = formatearFecha(hoy);
+        inputConfirmacion.min = formatearFecha(primerDiaMes);
+        inputConfirmacion.max = fechaHoyStr;
 
-        inputConfirmacion.min = fechaMinConfirmacion;
-        inputConfirmacion.max = fechaMaxConfirmacion;
+        // Si está vacío, le asignamos HOY inmediatamente
+        if (!inputConfirmacion.value) {
+            inputConfirmacion.value = fechaHoyStr;
+        }
     }
 }
