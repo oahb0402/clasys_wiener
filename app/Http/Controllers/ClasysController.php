@@ -12,8 +12,15 @@ use Carbon\Carbon;
 
 class ClasysController extends Controller
 {
-    public function index(Request $request, $id)
+    public function index(Request $request)
     {
+        // Obtiene cod_deu de la URL ?cod_deu=...
+        $id = $request->query('cod_deu') ?? $request->query('id');
+
+        if (!$id) {
+        abort(400, 'El parámetro cod_deu es requerido en la URL.');
+        }
+
         // 1. Buscamos el cliente en la tabla 'g110' con sus cuentas asociadas en 'g110_cta'
         $cliente = G110::with('detalles')->findOrFail($id);
 
