@@ -33,8 +33,8 @@ export function mostrarFormularioCondicion() {
 
 // Volver a la lista de opciones
 export function ocultarFormularioCondicion() {
-    document.getElementById('sub-menu-condicion').classList.add('hidden');
-    document.getElementById('sub-menu-lista').classList.remove('hidden');
+    //document.getElementById('sub-menu-condicion').classList.add('hidden');
+    //document.getElementById('sub-menu-lista').classList.remove('hidden');
 }
 
 function rellenarSeccionPromesaOConfirmacion(data) {

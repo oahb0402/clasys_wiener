@@ -3,6 +3,7 @@
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ClasysController;
 use App\Http\Controllers\CorreoController;
+use App\Http\Controllers\EnvMailController;
 use App\Http\Controllers\TelefonoController;
 use App\Http\Middleware\ValidarFirmaMarcador;
 
@@ -24,3 +25,5 @@ Route::put('/crm/gestion/{id}/gestion/{item}', [ClasysController::class, 'actual
 // 3. Rutas para agregar números y correos
 Route::post('/telefonos/guardar', [TelefonoController::class, 'store'])->name('telefonos.store');
 Route::post('/correos/guardar', [CorreoController::class, 'store'])->name('correos.store');
+
+Route::post('/envMail/guardar', [EnvMailController::class, 'store'])->name('envMails.store');

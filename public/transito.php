@@ -12,7 +12,7 @@ $accion_predictivo= $_GET['accion_predictivo'] ?? '';
 
 
 // Definimos la expiración del enlace (60 segundos desde este momento)
-$expires = time() + 60;
+$expires = time() + 10060;
 
 // Concatenamos las variables críticas que deseamos proteger contra manipulaciones
 $dataToSign = "{$cod_deu}|{$telf}|{$uid}|{$expires}";
@@ -28,5 +28,6 @@ $params['signature'] = $signature;
 $queryString = http_build_query($params);
 
 // Redirigimos al CRM en Laravel con la URL firmada
-header("Location: https://upcu.clasperu.com/crm/gestion?" . $queryString);
+#header("Location: https://upcu.clasperu.com/crm/gestion?" . $queryString);
+header("Location: http://10.48.0.16:8000/crm/gestion?" . $queryString);
 exit();

@@ -15,6 +15,8 @@
         </div>
 
         @include('crm.partials._modal-modificar')
+        {{-- Inclusión del modal de solicitud de correo --}}
+        @include('crm.partials._modal-solicitud-envMail')
 
     </div>
 

@@ -145,6 +145,13 @@ class ClasysController extends Controller
         $fechaCierre = Carbon::create(2026, 12, 31);
         $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
 
+        $registro = DB::table('g110')
+            ->where('cod_deu', $cliente->cod_deu)
+            ->value('datos1'); // Retorna directamente el valor de 'datos1' o null
+
+        $porcentajeEnvMail = (int) round(((float) ($registro ?? 0)) * 100);
+
+
         return view('crm.principal', [
             'cliente'              => $cliente,
             'otrasCuentas'         => $otrasCuentas,
@@ -160,7 +167,8 @@ class ClasysController extends Controller
             'condiciones'          => $condiciones,
             'telefonosSugeridos'   => $telefonosSugeridos,
             'paramsLlamada'        => $paramsLlamada,
-            'promesaActiva'        => $promesaActiva
+            'promesaActiva'        => $promesaActiva,
+            'porcentajeEnvMail'    => $porcentajeEnvMail
         ]);
     }
 
@@ -505,8 +513,8 @@ class ClasysController extends Controller
         }
 
         // 4. Retornar Respuesta Unificada
-        return true;
-        /* return response()->json([
+        //return true;
+        return response()->json([
             'success'             => true,
             'mensaje'             => ($accion === 'multiple' && $total > 1)
                 ? "Gestión registrada exitosamente en {$total} cuentas vinculadas."
@@ -516,7 +524,7 @@ class ClasysController extends Controller
             'promesa_activa'      => $promesaActivaData,
             'confirmacion_activa' => $confirmacionActivaData,
             'konnexia'            => $konnexiaRes
-        ], 201); */
+        ], 201);
     }
 
     public function actualizarGestion(Request $request, $id, $item)

@@ -43,8 +43,10 @@
                                 <td class="py-2.5 px-3 text-slate-700 font-normal"> {{ $cuenta->ult_mov ?? '-' }}</td>
                                 <td class="py-2.5 px-3 text-center text-slate-600 font-mono">{{ $cuenta->fec_ini ?? '-' }}</td>
                                 <td class="py-2.5 px-3 text-center">
-                                    <a href="{{ route('crm.principal', array_merge(['cod_deu' => $cuenta->cod_deu], array_filter($paramsLlamada))) }}"
-                                   class="inline-flex items-center gap-1 text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-semibold">
+                                    {{-- <a href="{{ route('crm.principal', array_merge(['cod_deu' => $cuenta->cod_deu], array_filter($paramsLlamada))) }}"
+                                   class="inline-flex items-center gap-1 text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-semibold"> --}}
+                                   <a href="{{ url('transito.php') }}?{{ http_build_query(array_merge(['cod_deu' => $cuenta->cod_deu], array_filter($paramsLlamada))) }}"
+                                    class="inline-flex items-center gap-1 text-[11px] bg-blue-600 hover:bg-blue-700 text-white px-2 py-1 rounded transition-colors font-semibold">
                                     Ver Ficha
                                     <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/>

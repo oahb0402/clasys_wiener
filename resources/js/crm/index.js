@@ -4,6 +4,7 @@ import { abrirHistorial, cerrarModalHistorial, cargarPaginaHistorial } from './h
 import { cargarPaginaGestionesEditar } from './gestiones-editar';
 import { setComentario, resetSeccionAgendar,initPanelGestion,actualizarAlertaPromesaActiva,configurarLimiteFechas, actualizarAlertaConfirmacionActiva } from './panel-gestion';
 import { initFormGestionSubmit, cancelarEdicionGestion } from './gestion-submit';
+import { abrirModalSolicitudCorreo, cerrarModalSolicitudCorreo,guardarSolicitudCorreo } from './modal-envMail';
 
 window.cancelarEdicionGestion = cancelarEdicionGestion;
 
@@ -28,7 +29,9 @@ window.editarGestion = editarGestion;
 window.resetSeccionAgendar = resetSeccionAgendar; // <-- Expuesto a window
 window.actualizarAlertaPromesaActiva = actualizarAlertaPromesaActiva; // <-- Expuesto a window
 window.actualizarAlertaPromesaActiva = actualizarAlertaConfirmacionActiva; // <-- Expuesto a window
-
+window.abrirModalSolicitudCorreo = abrirModalSolicitudCorreo;
+window.cerrarModalSolicitudCorreo = cerrarModalSolicitudCorreo;
+window.guardarSolicitudCorreo = guardarSolicitudCorreo; // <-- Agregado para el formulario del drawer
 
 
 document.addEventListener('DOMContentLoaded', () => {

@@ -208,6 +208,7 @@ function initAgendadoToggle() {
     inputFecha.required = false;
     inputHora.required = false;
 }
+
 export function initPanelGestion() {
     initPromesaConfirmacionToggle();
     initSubrespuestaFiltro();
