@@ -3,10 +3,9 @@
 $secret = 'CET+NE3BbVrn+kTyqMv0rTWtZCab6S1CNoyGn0XN5GM=';
 
 // Capturamos todos los parámetros query string enviados por el marcador
-$cod_deu          = $_GET['cod_deu'] ?? '';
-$telf             = $_GET['telf'] ?? '';
-$uid              = $_GET['uid'] ?? '';
-$campania         = $_GET['campania'] ?? '';
+$cod_deu          = trim($_GET['cod_deu'] ?? '');
+$telf             = trim($_GET['telf'] ?? '');
+$uid              = trim($_GET['uid'] ?? '');
 $idllamada        = $_GET['idllamada'] ?? '';
 $extension        = $_GET['extension'] ?? '';
 $accion_predictivo= $_GET['accion_predictivo'] ?? '';
@@ -16,7 +15,7 @@ $accion_predictivo= $_GET['accion_predictivo'] ?? '';
 $expires = time() + 60;
 
 // Concatenamos las variables críticas que deseamos proteger contra manipulaciones
-$dataToSign = "{$cod_deu}|{$telf}|{$uid}|{$campania}|{$expires}";
+$dataToSign = "{$cod_deu}|{$telf}|{$uid}|{$expires}";
 
 // Generamos el Hash HMAC SHA256
 $signature = hash_hmac('sha256', $dataToSign, $secret);

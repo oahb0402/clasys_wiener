@@ -10,11 +10,14 @@ class ValidarFirmaMarcador
 {
     public function handle(Request $request, Closure $next): Response
     {
-        $secret = env('MARCADOR_SECRET_KEY');
+        // 1. Clave Secreta con Fallback directo
+        $secret = env('MARCADOR_SECRET_KEY', 'CET+NE3BbVrn+kTyqMv0rTWtZCab6S1CNoyGn0XN5GM=');
 
-        $codDeu    = $request->query('cod_deu');
-        $telf      = $request->query('telf');
-        $uid       = $request->query('uid');
+        // Extraer y limpiar los mismos valores
+
+        $codDeu     = trim($request->query('cod_deu'));
+        $telf       = trim($request->query('telf'));
+        $uid        = trim($request->query('uid'));
         $campania  = $request->query('campania');
         $expires   = $request->query('expires');
         $signature = $request->query('signature');
