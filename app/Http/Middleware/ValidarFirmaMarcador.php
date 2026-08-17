@@ -18,7 +18,6 @@ class ValidarFirmaMarcador
         $codDeu     = trim($request->query('cod_deu'));
         $telf       = trim($request->query('telf'));
         $uid        = trim($request->query('uid'));
-        $campania  = $request->query('campania');
         $expires   = $request->query('expires');
         $signature = $request->query('signature');
 
@@ -33,7 +32,7 @@ class ValidarFirmaMarcador
         }
 
         // 3. Reconstruir la firma con los parámetros recibidos
-        $dataToSign = "{$codDeu}|{$telf}|{$uid}|{$campania}|{$expires}";
+        $dataToSign = "{$codDeu}|{$telf}|{$uid}|{$expires}";
         $expectedSignature = hash_hmac('sha256', $dataToSign, $secret);
 
         // 4. Verificar que la firma calculada coincida con la firma recibida
