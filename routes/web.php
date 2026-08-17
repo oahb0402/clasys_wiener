@@ -4,9 +4,16 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\ClasysController;
 use App\Http\Controllers\CorreoController;
 use App\Http\Controllers\TelefonoController;
+use App\Http\Middleware\ValidarFirmaMarcador;
 
 // 1. La ruta principal de gestión AHORA recibe el cliente mediante ?cod_deu=... en la query string
-Route::get('/crm/gestion', [ClasysController::class, 'index'])->name('crm.principal');
+//Route::get('/crm/gestion', [ClasysController::class, 'index'])->name('crm.principal');
+
+Route::prefix('crm')->group(function () {
+    Route::get('/gestion', [ClasysController::class, 'index'])
+        ->middleware(ValidarFirmaMarcador::class)
+        ->name('crm.principal');
+});
 
 // 2. Rutas secundarias de API/AJAX (se mantienen con {id} en la URL para identificar al cliente fácilmente)
 Route::get('/crm/gestion/{id}/historial/{tipo}', [ClasysController::class, 'historial'])->name('crm.historial');
