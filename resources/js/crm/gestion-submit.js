@@ -95,7 +95,7 @@ export function initFormGestionSubmit() {
     }
 
     document.getElementById('errores-gestion')?.classList.add('hidden');
-    alert(res.mensaje ?? 'Gestión guardada correctamente.');
+    //alert(res.mensaje ?? 'Gestión guardada correctamente.');
 })
 .catch(error => {
     // Este catch solo atrapará errores de conexión/red o el throw de arriba
