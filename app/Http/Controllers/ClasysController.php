@@ -505,7 +505,8 @@ class ClasysController extends Controller
         }
 
         // 4. Retornar Respuesta Unificada
-        return response()->json([
+        return true;
+        /* return response()->json([
             'success'             => true,
             'mensaje'             => ($accion === 'multiple' && $total > 1)
                 ? "Gestión registrada exitosamente en {$total} cuentas vinculadas."
@@ -515,7 +516,7 @@ class ClasysController extends Controller
             'promesa_activa'      => $promesaActivaData,
             'confirmacion_activa' => $confirmacionActivaData,
             'konnexia'            => $konnexiaRes
-        ], 201);
+        ], 201); */
     }
 
     public function actualizarGestion(Request $request, $id, $item)
