@@ -45,7 +45,7 @@
         </div>
         <div class="bg-slate-50 p-2.5 rounded-lg border border-slate-100">
             <span class="text-[10px] font-semibold text-slate-400 uppercase tracking-wide block">Carrera</span>
-            <span class="font-bold font-mono text-slate-800 truncate block mt-0.5" title="CARRERA">{{ $cliente->dir_fia ?? '-' }}</span>
+            <span class="font-bold font-mono text-slate-800 truncate block mt-0.5" title="{{ $cliente->dir_fia ?? 'CARRERA' }}">{{ $cliente->dir_fia ?? '-' }}</span>
         </div>
         <div class="bg-amber-50/60 p-2.5 rounded-lg border border-amber-100">
             <span class="text-[10px] font-semibold text-amber-700 uppercase tracking-wide block">Deuda Total</span>
