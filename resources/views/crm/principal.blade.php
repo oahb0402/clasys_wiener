@@ -14,15 +14,16 @@
             @include('crm.partials._panel-gestion')
         </div>
 
-        @include('crm.partials._modal-modificar')
-        {{-- Inclusión del modal de solicitud de correo --}}
-        @include('crm.partials._modal-solicitud-envMail')
-
     </div>
 
     @include('crm.partials._drawer-acciones')
     @include('crm.partials._fab-boton')
+    {{-- Inclusión del modal de Historial de gestiones --}}
     @include('crm.partials._modal-historial-interacciones')
+    {{-- Inclusión del modal de Modificar Gestiones --}}
+    @include('crm.partials._modal-modificar')
+    {{-- Inclusión del modal de solicitud de correo --}}
+    @include('crm.partials._modal-solicitud-envMail')
 
 @endsection
 
