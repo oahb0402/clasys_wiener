@@ -1,4 +1,4 @@
-import { toggleDrawer, cerrarDrawer, cambiarTabDrawer, initDrawerAtajos, guardarTelefono, guardarCorreo } from './drawer';
+import { toggleDrawer, cerrarDrawer, cambiarTabDrawer, initDrawerAtajos, guardarTelefono, guardarCorreo,toggleMenuUsuario, initMenuUsuarioEvents } from './drawer';
 import { abrirModalModificar, cerrarModalModificar, mostrarFormularioCondicion, ocultarFormularioCondicion, editarGestion } from './modal-modificar';
 import { abrirHistorial, cerrarModalHistorial, cargarPaginaHistorial } from './historial';
 import { cargarPaginaGestionesEditar } from './gestiones-editar';
@@ -32,11 +32,12 @@ window.actualizarAlertaPromesaActiva = actualizarAlertaConfirmacionActiva; // <-
 window.abrirModalSolicitudCorreo = abrirModalSolicitudCorreo;
 window.cerrarModalSolicitudCorreo = cerrarModalSolicitudCorreo;
 window.guardarSolicitudCorreo = guardarSolicitudCorreo; // <-- Agregado para el formulario del drawer
-
+window.toggleMenuUsuario = toggleMenuUsuario;
 
 document.addEventListener('DOMContentLoaded', () => {
     initDrawerAtajos();
     initPanelGestion();
     initFormGestionSubmit();
     configurarLimiteFechas();
+    initMenuUsuarioEvents();
 });

@@ -59,7 +59,8 @@
                             <input type="hidden" id="input_tel_cod_ban" name="cod_ban" value="{{ $cliente->cod_ban }}">
                             <input type="hidden" id="input_tel_cod_deu" name="cod_deu"
                                 value="{{ $cliente->cod_deu ?? '' }}">
-                            <input type="hidden" id="input_tel_usuario" name="usuario" value="{{ $paramsLlamada['uid'] }}">
+                            <input type="hidden" id="input_tel_usuario" name="usuario"
+                                value="{{ $paramsLlamada['uid'] }}">
 
                             <div>
                                 <label for="nuevo_tipo_tel"
@@ -147,15 +148,17 @@
                     <div id="content-menu" class="p-6 hidden">
                         <!-- Vista de Lista de Botones -->
                         <div id="sub-menu-lista" class="grid grid-cols-1 gap-2">
-                            <button type="button" onclick="abrirModalModificar()"
-                                class="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 text-slate-700 hover:text-blue-700 text-xs font-bold transition-all group">
-                                <span>Modificar Gestión</span>
-                                <svg class="w-4 h-4 text-slate-400 group-hover:text-blue-600" fill="none"
-                                    stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                                        d="M9 5l7 7-7 7" />
-                                </svg>
-                            </button>
+                            @if (strlen($paramsLlamada['uid'] ?? '') > 2)
+                                <button type="button" onclick="abrirModalModificar()"
+                                    class="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 text-slate-700 hover:text-blue-700 text-xs font-bold transition-all group">
+                                    <span>Modificar Gestión</span>
+                                    <svg class="w-4 h-4 text-slate-400 group-hover:text-blue-600" fill="none"
+                                        stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                            d="M9 5l7 7-7 7" />
+                                    </svg>
+                                </button>
+                            @endif
 
                             {{-- <button type="button" onclick="mostrarFormularioCondicion()"
                                 class="flex items-center justify-between p-3.5 rounded-xl border border-slate-200 hover:border-blue-500 hover:bg-blue-50/50 text-slate-700 hover:text-blue-700 text-xs font-bold transition-all group">

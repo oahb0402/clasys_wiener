@@ -171,3 +171,33 @@ export function guardarCorreo(event) {
         }
     });
 }
+
+/* ==========================================================================
+   NUEVO: MENÚ DESPLEGABLE USUARIO DIALER
+   ========================================================================== */
+
+/**
+ * Alterna la visibilidad del menú desplegable del usuario
+ */
+export function toggleMenuUsuario(event) {
+    if (event) event.stopPropagation();
+    const menu = document.getElementById('dropdown-usuario-dialer');
+    if (menu) {
+        menu.classList.toggle('hidden');
+    }
+}
+
+/**
+ * Inicializa los eventos globales para cerrar el menú desplegable al hacer click fuera
+ */
+export function initMenuUsuarioEvents() {
+    document.addEventListener('click', (event) => {
+        const menu = document.getElementById('dropdown-usuario-dialer');
+        if (menu && !menu.classList.contains('hidden')) {
+            // Verifica si el clic no ocurrió dentro del menú
+            if (!menu.contains(event.target)) {
+                menu.classList.add('hidden');
+            }
+        }
+    });
+}
