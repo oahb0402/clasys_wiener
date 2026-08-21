@@ -17,11 +17,36 @@
             <span class="font-semibold text-amber-400 ml-1">{{ $paramsLlamada['accion_predictivo'] }}</span>
         </div>
 
-        <div class="bg-slate-800/80 px-2.5 py-1 rounded-md border border-slate-700/60">
-            <span class="text-slate-400">Cierre:</span>
-            <span class="font-semibold text-white ml-1">{{ $diasParaCierre }}d</span>
-            <span class="text-[10px] text-slate-400 font-mono">(2026-12-31)</span>
-        </div>
+        <!-- BADGE DE ALERTA DE CIERRE DE CAMPAÑA -->
+<div class="flex items-center gap-1.5 px-3 py-1 rounded-md border font-medium transition-all shadow-sm
+    {{ $diasParaCierre <= 3
+        ? 'bg-rose-950/80 border-rose-500/80 text-rose-200 animate-pulse'
+        : ($diasParaCierre <= 7
+            ? 'bg-amber-950/70 border-amber-500/70 text-amber-200'
+            : 'bg-slate-800/80 border-slate-700/60 text-slate-200') }}">
+
+    <!-- Ícono Reloj / Alerta -->
+    <svg class="w-3.5 h-3.5 {{ $diasParaCierre <= 3 ? 'text-rose-400' : 'text-amber-400' }}"
+         fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+
+    <!-- Texto de la Alerta -->
+    <span>
+        @if($diasParaCierre === 0)
+            <strong class="font-bold text-rose-400 uppercase tracking-wider">¡Hoy cierra la campaña!</strong>
+        @elseif($diasParaCierre === 1)
+            Falta <strong class="font-bold text-rose-400">1 día</strong> para el cierre
+        @else
+            Faltan <strong class="font-bold text-amber-300">{{ $diasParaCierre }} días</strong> para el cierre
+        @endif
+    </span>
+
+    <!-- Separador y Fecha de Cierre -->
+    <span class="opacity-40">|</span>
+    <span class="text-slate-300 font-mono text-[11px]">{{ $fechaCierreFormateada }}</span>
+</div>
 
         <!-- MENÚ DESPLEGABLE CON JS VANILLA -->
 <div class="relative inline-block text-left">

@@ -145,8 +145,9 @@
                                         class="w-full rounded-lg border border-slate-300 p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
                                         <option value="">-- SELECCIONE GESTION --</option>
                                         @foreach ($tipo_gestiones as $tipo_gestion)
-                                            <option value="{{ $tipo_gestion->codigo }}">
-                                                {{ $tipo_gestion->codigo }} - {{ $tipo_gestion->descri }}
+                                            @php $item = (object) $tipo_gestion; @endphp
+                                            <option value="{{ $item->codigo }}">
+                                                {{ $item->codigo }} - {{ $item->descri }}
                                             </option>
                                         @endforeach
                                     </select>
@@ -161,15 +162,17 @@
                                         class="w-full rounded-lg border border-slate-300 p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
                                         <option value="">-- SELECCIONE RESPUESTA --</option>
                                         @foreach ($respuestas as $nombreGrupo => $listaRespuestas)
-                                            <optgroup label="{{ $nombreGrupo }}"
-                                                class="font-bold text-slate-900 bg-slate-100">
-                                                @foreach ($listaRespuestas as $item)
-                                                    <option value="{{ trim($item->codigo) }}"
-                                                        data-promesa="{{ $item->promesa }}"
-                                                        class="font-normal text-slate-700 bg-white">
-                                                        {{ $item->codigo }} - {{ $item->descrip }}
-                                                    </option>
-                                                @endforeach
+                                            <optgroup label="{{ $nombreGrupo }}" class="font-bold text-slate-900 bg-slate-100">
+                                                @if (is_array($listaRespuestas) || is_object($listaRespuestas))
+                                                    @foreach ($listaRespuestas as $item)
+                                                        @php $item = (object) $item; @endphp
+                                                        <option value="{{ trim($item->codigo) }}"
+                                                            data-promesa="{{ $item->promesa }}"
+                                                            class="font-normal text-slate-700 bg-white">
+                                                            {{ $item->codigo }} - {{ $item->descrip }}
+                                                        </option>
+                                                    @endforeach
+                                                @endif
                                             </optgroup>
                                         @endforeach
                                     </select>
@@ -321,6 +324,7 @@
                                         class="w-full rounded-lg border border-slate-300 p-2.5 bg-slate-100 text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed">
                                         <option value="">-- SELECCIONE SUB RESPUESTA --</option>
                                         @foreach ($sub_respuestas as $sub)
+                                            @php $sub = (object) $sub; @endphp
                                             <option value="{{ trim($sub->codigo) }}">
                                                 {{ $sub->codigo }} - {{ $sub->descrip }}
                                             </option>
@@ -338,6 +342,7 @@
                                         class="w-full rounded-lg border border-slate-300 p-2.5 bg-white text-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
                                         <option value="">-- SELECCIONE CONTACTO --</option>
                                         @foreach ($tipo_contactos as $tipo_contacto)
+                                                @php $tipo_contacto = (object) $tipo_contacto; @endphp
                                             <option value="{{ $tipo_contacto->codigo }}">
                                                 {{ $tipo_contacto->codigo }} - {{ $tipo_contacto->descri }}
                                             </option>
@@ -356,6 +361,7 @@
                                     <select name="condicion"
                                         class="w-full rounded-lg border border-slate-300 p-2.5 bg-white text-slate-800 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 focus:outline-none transition-all">
                                         @foreach ($condiciones as $cond)
+                                        @php $cond = (object) $cond; @endphp
                                             <option value="{{ $cond->codigo }}"
                                                 {{ trim($cliente->condicion) == trim($cond->codigo) ? 'selected' : '' }}>
                                                 {{ $cond->codigo }} - {{ $cond->descrip }}

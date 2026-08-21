@@ -2,53 +2,38 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use App\Models\EnvMail;
-use App\Models\G110;
+use App\Http\Requests\GuardarEnvMailRequest;
+use App\Services\EnvMailService;
+
 use Illuminate\Http\JsonResponse;
-use Exception;
 
 class EnvMailController extends Controller
 {
-    public function store(Request $request): JsonResponse
-    {
-        // 1. Validar los datos recibidos PRIMERO
-        $validated = $request->validate([
-            'cod_ban'        => 'required|string|max:2',
-            'cod_deu'        => 'required|string|max:11',
-            'fec_pago'       => 'required|date',
-            'porcentaje'     => 'required|string',
-            'monto_campania' => 'required|numeric|min:0',
-            'usuario'        => 'required|string|min:2',
-        ]);
+    protected EnvMailService $envMailService;
 
+    public function __construct(EnvMailService $envMailService)
+    {
+        $this->envMailService = $envMailService;
+    }
+        public function store(GuardarEnvMailRequest $request): JsonResponse
+    {
         try {
-            // 2. Buscar el cliente en la BD tras asegurar la validación
-            $cliente = G110::where('cod_deu', $validated['cod_deu'])->firstOrFail();
-            // 3. Registrar el correo en el modelo Envmail
-            $nuevoEnvMail = Envmail::create([
-                'cod_ban'    => $validated['cod_ban'],
-                'cod_deu'    => $validated['cod_deu'],
-                'grupo'      => $cliente->grupo,
-                'nom_deu'    => $cliente->nom_deu,
-                'nro_doc'    => $cliente->nro_doc,
-                'fecha_pago' => $validated['fec_pago'],
-                'porcentaje' => $validated['porcentaje'],
-                'monto_pago' => $validated['monto_campania'],
-                'created_by' => $validated['usuario'],
-            ]);
+
+            $nuevoEnvMail = $this->envMailService->registrarEnvMail($request);
 
             return response()->json([
                 'success' => true,
-                'message' => 'Correo registrado correctamente.',
+                'message' => 'Solicitud registrada correctamente.',
                 'data'    => $nuevoEnvMail,
             ], 201);
 
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
+            $code = $e->getCode() === 422 ? 422 : 500;
+
             return response()->json([
                 'success' => false,
-                'message' => 'Error al registrar la Solicitud: ' . $e->getMessage(),
-            ], 500);
+                'message' => $e->getMessage(),
+            ], $code);
         }
     }
 }

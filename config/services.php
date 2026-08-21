@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'konnexia' => [
+        'base_url' => env('KONNEXIA_BASE_URL', 'https://clasa.konnexiacloud.com/api/ucm/integrations'),
+        'api_key'  => env('KONNEXIA_API_KEY'),
+    ],
+
 ];

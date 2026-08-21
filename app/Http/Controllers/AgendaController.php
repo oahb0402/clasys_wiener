@@ -36,7 +36,6 @@ class AgendaController extends Controller
                     'usuario_creador'  => $validated['usuario'],
                 ]);
             }
-
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,

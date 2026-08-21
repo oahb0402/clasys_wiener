@@ -3,11 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Factories\HasFactory;
 
 class EnvMail extends Model
 {
-    use HasFactory;
+
     // Indicamos el nombre exacto de la tabla en producción
     protected $table = 't_env_mail';
     // Desactivar si la tabla no tiene timestamps (created_at / updated_at)

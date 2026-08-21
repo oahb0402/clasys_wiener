@@ -2,15 +2,15 @@
 
 namespace App\Http\Controllers;
 
+// 1. Importar el Form Request
+use App\Http\Requests\GuardarGestionRequest;
+// Importamos el servicio
+use App\Services\KonnexiaService;
+use App\Services\CatalogService;
+
 use App\Models\Agenda;
 use App\Models\G110;
-
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Log;
-
 use Illuminate\Support\Facades\DB; // <-- Importamos DB si no usas un modelo para los controles
-use App\Models\G220;
-use App\Models\G220Sms;
 use Illuminate\Http\Request;
 use Carbon\Carbon;
 
@@ -20,6 +20,18 @@ use Carbon\Carbon;
 
 class ClasysController extends Controller
 {
+
+    protected KonnexiaService $konnexiaService;
+    protected CatalogService $catalogService;
+
+
+    // Inyección de dependencias
+    public function __construct(KonnexiaService $konnexiaService, CatalogService $catalogService)
+    {
+        $this->konnexiaService = $konnexiaService;
+        $this->catalogService  = $catalogService;
+    }
+
     public function index(Request $request)
     {
         // 1. Obtiene cod_deu de la Query String ?cod_deu=... o ?id=...
@@ -56,49 +68,13 @@ class ClasysController extends Controller
         // Recibos pendientes
         $recibos = $cliente->detalles->where('estado', '');
 
-        // Listados de catálogos f190
-        $tipo_gestiones = DB::table('f190')
-            ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
-            ->where('activo', '1')
-            ->whereIn('codigo', ['TBTM', 'TBTC', 'TBML', 'TBMT', 'TBWA'])
-            ->orderBy('descri', 'asc')
-            ->get();
-
-        $tipo_contactos = DB::table('f190')
-            ->select(DB::raw("SUBSTR(codigo, 3, 3) AS codigo"), 'descri')
-            ->where('activo', '1')
-            ->where('codigo', 'LIKE', 'UN%')
-            ->orderBy('descri', 'asc')
-            ->get();
-
-        // Respuestas y Sub-respuestas
-        $respuestas = DB::table('respuestas')
-            ->select('codigo', 'descrip', 'corta', 'promesa')
-            ->where('activo', '1')
-            ->where('tipo', 'TELEFONO')
-            ->orderBy('corta', 'asc')
-            ->orderBy('descrip', 'asc')
-            ->get()
-            ->groupBy('corta');
-
-        $sub_respuestas = DB::table('sub_respuestas')
-            ->select('codigo', 'descrip')
-            ->where('activo', '1')
-            ->where('tipo', 'TELEFONO')
-            ->orderByRaw('codigo::int ASC')
-            ->get();
-
-        // Condiciones activas
-        $condiciones = DB::table('condiciong110')
-            ->select(DB::raw('TRIM(codigo) as codigo'), 'descrip')
-            ->where('activo', '1')
-            ->whereNotIn(DB::raw('TRIM(codigo)'), ['AC', 'AG', 'AJ', 'AD', 'BQ', 'DB', 'DV', 'DC', 'EP', 'RF', 'SS', 'IF', 'IT', 'IN', 'MN', 'NG', 'NM', 'ND', 'NT', 'PC', 'PT', 'PH', 'PU', 'X1', 'Y1', 'PF', 'PV', 'VF', 'RR', 'RW', 'SM', 'ST', 'UT', 'UF', 'UM', 'UG', 'IC', 'RN', 'UP', 'ZP', 'CA'])
-            ->orderBy('descrip', 'asc')
-            ->get();
+        // Obtener catálogos mediante el servicio // respuestas- sub_res / condiciones etc
+        $catalogos = $this->catalogService->obtenerCatalogos();
 
         // Arrays de Promesas y Confirmaciones
-        $codigosPromesaX = $this->obtenerCodigosPromesa();
-        $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
+        $codigosPromesaX      = $this->catalogService->obtenerCodigosPromesa();
+        $codigosConfirmacionX = $this->catalogService->obtenerCodigosConfirmacion();
+
 
         $telefonosSugeridos = [];
 
@@ -117,80 +93,53 @@ class ClasysController extends Controller
         ] : null;
 
         // Métricas rápidas
+
+        $metricas = $cliente->gestiones()
+            ->selectRaw("
+            COUNT(CASE WHEN tip_con NOT IN ('IV', 'ML') THEN 1 END) as total,
+            COUNT(CASE WHEN tip_con NOT IN ('IV', 'ML') AND corta IN ('CEF', 'CNE') THEN 1 END) as positives,
+            COUNT(CASE WHEN tip_con = 'IV' THEN 1 END) as ivr,
+            COUNT(CASE WHEN tip_con = 'ML' THEN 1 END) as mail
+        ")
+            ->first();
+
         $historialRapido = [
-            'total' => $cliente->gestiones()
-                ->whereNotIn('tip_con', ['IV', 'ML'])
-                ->count(),
-
-            'positives' => $cliente->gestiones()
-                ->whereNotIn('tip_con', ['IV', 'ML'])
-                ->whereIn('corta', ['CEF', 'CNE'])
-                ->count(),
-
-            'ivr' => $cliente->gestiones()
-                ->where('tip_con', 'IV')
-                ->count(),
-
-            'mail' => $cliente->gestiones()
-                ->whereIn('tip_con', ['ML'])
-                ->count(),
-
-            'sms' => $cliente->gestiones_sms()
-                ->count(),
-
-            'abono' => 0
+            'total'     => $metricas->total ?? 0,
+            'positives' => $metricas->positives ?? 0,
+            'ivr'       => $metricas->ivr ?? 0,
+            'mail'      => $metricas->mail ?? 0,
+            'sms'       => $cliente->gestiones_sms()->count(),
+            'abono'     => 0
         ];
 
-        // Días al cierre
-        $fechaCierre = Carbon::create(2026, 12, 31);
-        $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierre);
+        // Obtenemos la fecha de cierre específica según el grupo del cliente
+        // 1. Obtener objeto Carbon
+        $fechaCierreObj = $this->catalogService->obtenerFechaCierre($cliente->grupo);
 
-        $registro = DB::table('g110')
-            ->where('cod_deu', $cliente->cod_deu)
-            ->value('datos1'); // Retorna directamente el valor de 'datos1' o null
+        // 2. Calcular días de diferencia
+        $diasParaCierre = (int) Carbon::now()->diffInDays($fechaCierreObj);
 
-        $porcentajeEnvMail = (int) round(((float) ($registro ?? 0)) * 100);
+        // 3. Formatear la fecha a día/mes/año para enviarla a la vista
+        $fechaCierreFormateada = $fechaCierreObj->format('d/m/Y'); // Ej: 31/12/2026
+
+        // esto es para el modal de correos
+        $porcentajeEnvMail = (int) round(((float) ($cliente->datos1 ?? 0)) * 100);
 
 
-        return view('crm.principal', [
+        return view('crm.principal', array_merge([
             'cliente'              => $cliente,
             'otrasCuentas'         => $otrasCuentas,
             'recibos'              => $recibos,
             'historialRapido'      => $historialRapido,
             'diasParaCierre'       => $diasParaCierre,
-            'tipo_gestiones'       => $tipo_gestiones,
-            'tipo_contactos'       => $tipo_contactos,
-            'respuestas'           => $respuestas,
-            'sub_respuestas'       => $sub_respuestas,
+            'fechaCierreFormateada' => $fechaCierreFormateada,
             'codigosPromesaX'      => $codigosPromesaX,
             'codigosConfirmacionX' => $codigosConfirmacionX,
-            'condiciones'          => $condiciones,
             'telefonosSugeridos'   => $telefonosSugeridos,
             'paramsLlamada'        => $paramsLlamada,
             'promesaActiva'        => $promesaActiva,
             'porcentajeEnvMail'    => $porcentajeEnvMail
-        ]);
-    }
-
-
-    // === 1. Helper reusable — agrégalo como método privado de la clase ===
-    // (evita repetir la consulta que ya tienes en index())
-    protected function obtenerCodigosPromesa(): array
-    {
-        return DB::table('r_respuestas_x')
-            ->where('tipo', 'PROMESA')
-            ->pluck('codigo')
-            ->toArray();
-    }
-
-    // === 1. Helper reusable — agrégalo como método privado de la clase ===
-    // (evita repetir la consulta que ya tienes en index())
-    protected function obtenerCodigosConfirmacion(): array
-    {
-        return DB::table('r_respuestas_x')
-            ->where('tipo', 'CONFIRMACION')
-            ->pluck('codigo')
-            ->toArray();
+        ], $catalogos)); // <-- $catalogos pasa 'tipo_gestiones', 'respuestas', etc. automáticamente a la vista
     }
 
 
@@ -206,92 +155,73 @@ class ClasysController extends Controller
             'sms' => [
                 'relacion' => 'gestiones_sms',
                 'campos' => fn($item) => [
-                    'telef_ges'   => $item->telef_ges ?? 'N/A',
-                    'estado'     => $item->tip_rb ?? 'SMS',
-                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
-                    'usuario'   => $item->usuario ?? '91',
-                    'fec_reg'   => $item->fec_reg ?? '-',
-                    'mon_pro'   => $item->mon_pro ?? 0,
-                    'item'   => $item->item ?? '-',
-                    'con_cam'   => $item->con_cam ?? '',
+                    'telef_ges'  => $item->telef_ges ?? 'N/A',
+                    'estado'      => $item->tip_rb ?? 'SMS',
+                    'comentario'  => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                    'usuario'    => $item->usuario ?? '91',
+                    'fec_reg'    => $item->fec_reg ?? '-',
+                    'mon_pro'    => $item->mon_pro ?? 0,
+                    'item'       => $item->item ?? '-',
+                    'con_cam'    => $item->con_cam ?? '',
                 ],
             ],
 
             'ivr' => [
-                'relacion' => 'gestiones', // <-- confirma el nombre real de esta relación en G110
+                'relacion' => 'gestiones',
                 'campos' => fn($item) => [
-                    'telef_ges'   => $item->telef_ges ?? 'N/A',
-                    'estado'     => 'IVR',
-                    'comentario' => $item->comentario ?? $item->detalle ?? 'Sin detalle',
-                    'usuario'   => $item->usuario ?? '91',
-                    'fec_reg'   => $item->fec_reg ?? '-',
-                    'mon_pro'   => $item->mon_pro ?? 0,
-                    'item'   => $item->item ?? '-',
-                    'con_cam'   => $item->con_cam ?? '',
+                    'telef_ges'  => $item->telef_ges ?? 'N/A',
+                    'estado'      => 'IVR',
+                    'comentario'  => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                    'usuario'    => $item->usuario ?? '91',
+                    'fec_reg'    => $item->fec_reg ?? '-',
+                    'mon_pro'    => $item->mon_pro ?? 0,
+                    'item'       => $item->item ?? '-',
+                    'con_cam'    => $item->con_cam ?? '',
                 ],
             ],
 
             'mail' => [
-                'relacion' => 'gestiones', // <-- confirma el nombre real
+                'relacion' => 'gestiones',
                 'campos' => fn($item) => [
-                    'telef_ges'   => $item->comenta3 ?? $item->correo ?? 'N/A', // <-- confirma la columna del correo
-                    'estado'     => 'MAIL',
-                    'comentario' => $item->comentario ?? $item->asunto ?? 'Sin detalle',
-                    'usuario'   => $item->usuario ?? '91',
-                    'fec_reg'   => $item->fec_reg ?? '-',
-                    'mon_pro'   => $item->mon_pro ?? 0,
-                    'item'   => $item->item ?? '-',
-                    'con_cam'   => $item->con_cam ?? '',
+                    'telef_ges'  => $item->comenta3 ?? $item->correo ?? 'N/A',
+                    'estado'      => 'MAIL',
+                    'comentario'  => $item->comentario ?? $item->asunto ?? 'Sin detalle',
+                    'usuario'    => $item->usuario ?? '91',
+                    'fec_reg'    => $item->fec_reg ?? '-',
+                    'mon_pro'    => $item->mon_pro ?? 0,
+                    'item'       => $item->item ?? '-',
+                    'con_cam'    => $item->con_cam ?? '',
                 ],
             ],
+
             'gestiones', 'positivas' => [
                 'relacion' => 'gestiones',
                 'campos' => function ($item) use ($codigosPromesa, $codigosConfirmacion) {
                     $codigoRespuesta = trim($item->tip_rb ?? '');
 
                     return [
-                        'telef_ges'    => $item->telef_ges ?? 'N/A',
-                        'estado'      => $item->tip_rb ?? 'GESTIÓN',
-                        'comentario'  => $item->comentario ?? $item->detalle ?? 'Sin detalle',
-                        'es_promesa'  => in_array($codigoRespuesta, $codigosPromesa, true),
-                        'es_confirmacion' => in_array($codigoRespuesta, $codigosConfirmacion, true), // <-- Agregado
-                        'usuario'   => $item->usuario ?? '91',
-                        'fec_reg'   => $item->fec_reg ?? '-',
-                        'mon_pro'   => $item->mon_pro ?? 0,
-                        'item'   => $item->item ?? '-',
-                        'con_cam'   => $item->con_cam ?? '',
+                        'telef_ges'       => $item->telef_ges ?? 'N/A',
+                        'estado'          => $item->tip_rb ?? 'GESTIÓN',
+                        'comentario'      => $item->comentario ?? $item->detalle ?? 'Sin detalle',
+                        'es_promesa'      => in_array($codigoRespuesta, $codigosPromesa, true),
+                        'es_confirmacion' => in_array($codigoRespuesta, $codigosConfirmacion, true),
+                        'usuario'         => $item->usuario ?? '91',
+                        'fec_reg'         => $item->fec_reg ?? '-',
+                        'mon_pro'         => $item->mon_pro ?? 0,
+                        'item'            => $item->item ?? '-',
+                        'con_cam'         => $item->con_cam ?? '',
                     ];
                 },
             ],
 
-            /* 'positivas' => [
-                'relacion' => 'gestiones',
-                'campos' => function ($item) use ($codigosPromesa, $codigosConfirmacion) {
-                    $codigoRespuesta = trim($item->tip_rb ?? '');
-
-                    return [
-                        'telef_ges'    => $item->telef_ges ?? 'N/A',
-                        'estado'      => $item->tip_rb ?? 'GESTIÓN',
-                        'comentario'  => $item->comentario ?? $item->detalle ?? 'Sin detalle',
-                        'es_promesa'  => in_array($codigoRespuesta, $codigosPromesa, true),
-                        'es_confirmacion' => in_array($codigoRespuesta, $codigosConfirmacion, true), // <-- Agregado
-                        'usuario'    => $item->usuario ?? '91',
-                        'fec_reg'   => $item->fec_reg ?? '-',
-                        'mon_pro'   => $item->mon_pro ?? 0,
-                        'item'   => $item->item ?? '-',
-                        'con_cam'   => $item->con_cam ?? '',
-                    ];
-                },
-            ], */
             'editar_gestiones' => [
                 'relacion' => 'gestiones',
                 'campos' => fn($item) => [
-                    // 'id' es el identificador real que se usa en editarGestion(id) desde el botón "Editar"
                     'id'            => $item->item,
-                    'respuesta'     => trim(($item->corta ?? '') . ' - ' . ($item->comentario ?? '')), // <-- confirma: ¿de dónde sale "802 - Contestan y cuelgan"? ¿es una relación a la tabla "respuestas"?
+                    'respuesta'     => trim(($item->corta ?? '') . ' - ' . ($item->comentario ?? '')),
                     'sub_respuesta' => $item->sub_res ?? '',
                     'monto_pdp'     => $item->mon_pro ?? 0,
-                    'condicion'     => $item->condicion ?? '',
+                    'condicion'     => $item->cond_gral ?? '',
                     'telefono'      => $item->telef_ges ?? '',
                     'hora'          => $item->control1 ?? '',
                     'usuario'       => $item->usuario ?? '91',
@@ -308,43 +238,48 @@ class ClasysController extends Controller
      */
     public function historial(Request $request, $id, string $tipo)
     {
-        $codigosPromesa = $this->obtenerCodigosPromesa();
-        $codigosConfirmacion = $this->obtenerCodigosConfirmacion();
+        // 1. Obtener configuraciones mediante el servicio
+        $codigosPromesa = $this->catalogService->obtenerCodigosPromesa();
+        $codigosConfirmacion = $this->catalogService->obtenerCodigosConfirmacion();
         $config = $this->configHistorial($tipo, $codigosPromesa, $codigosConfirmacion);
 
-        $query = G110::findOrFail($id)->{$config['relacion']}()
-            ->orderBy('item', 'desc');
+        // 2. Cargar modelo principal
+        $cliente = G110::findOrFail($id);
 
-        // Filtros según tipo
-        // Filtros según tipo
+        // 3. Resolver la relación de forma explícita y segura
+        $query = match ($config['relacion']) {
+            'gestiones_sms' => $cliente->gestiones_sms(),
+            default         => $cliente->gestiones(),
+        };
+
+        // 4. Aplicar filtros directamente según el tipo
         match ($tipo) {
             'positivas'        => $query->whereNotIn('tip_con', ['IV', 'ML'])->whereIn('corta', ['CEF', 'CNE']),
             'gestiones'        => $query->whereNotIn('tip_con', ['IV', 'ML']),
             'ivr'              => $query->whereIn('tip_con', ['IV']),
             'mail'             => $query->whereIn('tip_con', ['ML']),
             'editar_gestiones' => $query->whereNotIn('usuario', ['91']),
-            default            => null
+            default            => null,
         };
 
-        $paginados = $query->paginate(5);
+        // 5. Ordenar y Paginar
+        $paginados = $query->orderBy('item', 'desc')->paginate(5);
         $total     = $paginados->total();
-        $firstItem = $paginados->firstItem();
+        $firstItem = $paginados->firstItem() ?? 0;
 
-        $data = collect($paginados->items())->map(function ($item, $key) use ($total, $firstItem, $config) {
+        // 6. Transformar la colección paginada
+        $paginados->getCollection()->transform(function ($item, $key) use ($total, $firstItem, $config) {
             $numeroItem = $total - ($firstItem + $key - 1);
 
-            // Formateo de Fecha / Hora (igual para todos los tipos)
+            // Formateo limpio de Fecha / Hora
             $fechaFormateada = 'N/A';
             if (!empty($item->fec_sin)) {
-                $fechaFormateada = is_object($item->fec_sin)
-                    ? $item->fec_sin->format('Y-m-d H:i:s')
-                    : trim($item->fec_sin);
+                $fechaRaw = is_object($item->fec_sin)
+                    ? $item->fec_sin->format('Y-m-d')
+                    : trim(explode(' ', $item->fec_sin)[0]);
 
-                if (!empty($item->control1)) {
-                    $fechaClean = trim(explode(' ', $fechaFormateada)[0]);
-                    $horaClean = trim($item->control1);
-                    $fechaFormateada = "{$fechaClean} {$horaClean}";
-                }
+                $horaRaw = !empty($item->control1) ? trim($item->control1) : '00:00:00';
+                $fechaFormateada = "{$fechaRaw} {$horaRaw}";
             }
 
             return array_merge(
@@ -356,11 +291,12 @@ class ClasysController extends Controller
             );
         });
 
+        // 7. Retornar respuesta estructurada
         return response()->json([
-            'data'         => $data,
+            'data'         => $paginados->items(),
             'current_page' => $paginados->currentPage(),
             'last_page'    => $paginados->lastPage(),
-            'first_item'   => $firstItem ?? 0,
+            'first_item'   => $firstItem,
             'last_item'    => $paginados->lastItem() ?? 0,
             'total'        => $total,
         ]);
@@ -394,25 +330,26 @@ class ClasysController extends Controller
         ]);
     }
 
-    public function guardarGestion(Request $request, $id)
+    // Inyectamos GuardarGestionRequest directamente en el método
+    public function guardarGestion(GuardarGestionRequest $request, $id)
     {
-        // Pasamos $id a validarGestion para consultar las promesas del cliente
-        $this->validarGestion($request, $id);
+        // La validación se ejecuta automáticamente ANTES de entrar a este método.
 
-        // Buscar al cliente (especificando 'cod_deu' para evitar problemas con la clave primaria)
+        // Buscar al cliente principal
         $cliente = G110::where('cod_deu', $id)->firstOrFail();
 
-        // Leemos la variable 'accion' que envían tus botones ('grabar' o 'multiple')
+        // Variable 'accion' enviada por los botones ('grabar' o 'multiple')
         $accion = $request->input('accion', 'grabar');
 
         // 1. Guardar en Base de Datos (Gestión + Agendas)
         $itemsRegistrados = DB::transaction(function () use ($request, $cliente, $accion) {
             $items = [];
+            $rowsToInsert = [];
 
             // Incluimos siempre la cuenta cliente principal
             $cuentasAProcesar = collect([$cliente]);
 
-            // Si es 'multiple', buscamos todas las demás cuentas bajo el mismo nro_doc
+            // Si es 'multiple', buscamos las demás cuentas bajo el mismo nro_doc
             if ($accion === 'multiple' && !empty($cliente->nro_doc)) {
                 $otrasCuentas = G110::where('nro_doc', trim($cliente->nro_doc))
                     ->where('cod_deu', '!=', $cliente->cod_deu)
@@ -421,22 +358,26 @@ class ClasysController extends Controller
                 $cuentasAProcesar = $cuentasAProcesar->merge($otrasCuentas);
             }
 
-            // Iteramos para guardar en g220 de cada cuenta
+            // Mapeo delegado al Form Request
+            $datosBase = $request->toDatabaseArray();
+
+            // Generar los correlativos e insumos de cada cuenta
             foreach ($cuentasAProcesar as $cuenta) {
                 $siguienteItem = DB::selectOne(
                     "SELECT nuevo_item_por_codigo(?) AS item",
                     [$cuenta->cod_deu]
                 )->item;
 
-                $datos = $this->mapearDatosGestion($request);
-                $datos['cod_deu'] = $cuenta->cod_deu;
-                $datos['item']    = $siguienteItem;
-                $datos['cod_ban'] = $cuenta->cod_ban;
-                $datos['grupo']   = $cuenta->grupo;
-                $datos['nro_cta'] = $cuenta->nro_cta;
+                // Ensamblar la fila de la cuenta actual
+                $rowsToInsert[] = array_merge($datosBase, [
+                    'cod_deu' => $cuenta->cod_deu,
+                    'item'    => $siguienteItem,
+                    'cod_ban' => $cuenta->cod_ban,
+                    'grupo'   => $cuenta->grupo,
+                    'nro_cta' => $cuenta->nro_cta,
+                ]);
 
-                DB::table('g220')->insert($datos);
-
+                // Actualizar condición del cliente si hubo cambio
                 $this->actualizarCondicionCliente($cuenta, $request);
 
                 $items[] = [
@@ -445,18 +386,15 @@ class ClasysController extends Controller
                 ];
             }
 
-            // Validar los datos de agendamiento
-            $validated = $request->validate([
-                'fec_agenda' => 'required_if:agendar,1|nullable|date',
-                'hor_agenda' => 'required_if:agendar,1|nullable|date_format:H:i',
-            ]);
+            // Inserción masiva única (Bulk Insert) en g220
+            DB::table('g220')->insert($rowsToInsert);
 
-            // Registrar en la tabla `agendas` solo si se marcó el checkbox
+            // Registrar en la tabla agendas si se solicita
             if ($request->boolean('agendar')) {
                 Agenda::create([
                     'cod_deu'         => $cliente->cod_deu,
-                    'fecha'           => $validated['fec_agenda'],
-                    'hora'            => $validated['hor_agenda'],
+                    'fecha'           => $request->input('fec_agenda'),
+                    'hora'            => $request->input('hor_agenda'),
                     'usuario'         => $request->input('usuario'),
                     'obs'             => $request->input('comentario'),
                     'cartera'         => $cliente->cod_ban,
@@ -468,20 +406,17 @@ class ClasysController extends Controller
             return $items;
         });
 
-        // 2. Consumir y Registrar en Konnexia (Solo si viene desde el marcador Y la acción NO es 'grabar')
+        // 2. Consumir Konnexia usando el Servicio delegado
         $konnexiaRes = null;
-
-        // Validamos que 'comenta2' (o 'idllamada') esté presente Y que la acción presionada NO sea 'grabar'
         if ($request->filled('comenta2') && $accion !== 'grabar') {
-            $konnexiaRes = $this->enviarAKonnexia($request);
+            $konnexiaRes = $this->konnexiaService->finalizarLlamada($request);
         }
 
         // 3. Evaluar respuesta de Promesa y Confirmación para el Frontend
-        $total = count($itemsRegistrados);
         $codigoControl = trim($request->input('control', ''));
 
         // --- EVALUACIÓN DE PROMESA ---
-        $codigosPromesaX = $this->obtenerCodigosPromesa();
+        $codigosPromesaX = $this->catalogService->obtenerCodigosPromesa();
         $esPromesa       = in_array($codigoControl, $codigosPromesaX, true);
 
         $promesaActivaData = null;
@@ -497,7 +432,7 @@ class ClasysController extends Controller
         }
 
         // --- EVALUACIÓN DE CONFIRMACIÓN ---
-        $codigosConfirmacionX = $this->obtenerCodigosConfirmacion();
+        $codigosConfirmacionX = $this->catalogService->obtenerCodigosConfirmacion();
         $esConfirmacion       = in_array($codigoControl, $codigosConfirmacionX, true);
 
         $confirmacionActivaData = null;
@@ -513,11 +448,10 @@ class ClasysController extends Controller
         }
 
         // 4. Retornar Respuesta Unificada
-        //return true;
         return response()->json([
             'success'             => true,
-            'mensaje'             => ($accion === 'multiple' && $total > 1)
-                ? "Gestión registrada exitosamente en {$total} cuentas vinculadas."
+            'mensaje'             => ($accion === 'multiple' && count($itemsRegistrados) > 1)
+                ? "Gestión registrada exitosamente en " . count($itemsRegistrados) . " cuentas vinculadas."
                 : 'Gestión registrada correctamente.',
             'items'               => $itemsRegistrados,
             'accion'              => $accion,
@@ -527,15 +461,39 @@ class ClasysController extends Controller
         ], 201);
     }
 
-    public function actualizarGestion(Request $request, $id, $item)
-    {
-        // Se recomienda agregar validación previa
-        $this->validarGestion($request);
 
-        $cliente = G110::findOrFail($id);
+    public function actualizarGestion(GuardarGestionRequest $request, $id, $item)
+    {
+        // La validación se ejecuta automáticamente antes de entrar a esta función
+        $cliente = G110::where('cod_deu', $id)->firstOrFail();
 
         DB::transaction(function () use ($request, $cliente, $item) {
-            $datos = $this->mapearDatosGestion($request);
+            // Uso directo del método delegado
+
+            // 1. Obtenemos el arreglo mapeado desde el Form Request
+            $datos = $request->toDatabaseArray();
+            // 2. Excluimos los tiempos originales y el campo de usuario original
+            unset(
+                $datos['grupo'],
+                $datos['usuario'],
+                $datos['fec_sin'],
+                $datos['con_cam'],
+                $datos['control1'],
+                $datos['control2'],
+                $datos['comenta2'],
+                $datos['comenta3'],
+                $datos['uid'],
+                $datos['anexo'],
+                $datos['telef_ges'],
+                $datos['fec_ges_ini'],
+                $datos['fec_ges_fin'],
+                $datos['horainia'],
+                $datos['horafina'],
+            );
+
+            // 3. Asignamos el usuario y fecha  a la columna de edición deseada
+            $datos['control'] = $request->input('usuario'); // Reemplaza 'usuario_edit' por el nombre real de tu columna
+            $datos['fecha1']     = now()->format('Y-m-d'); // Opcional: registrar fecha/hora de modificación
 
             DB::table('g220')
                 ->where('cod_deu', $cliente->cod_deu)
@@ -546,124 +504,11 @@ class ClasysController extends Controller
         });
 
         return response()->json([
+            'success' => true,
             'mensaje' => 'Gestión actualizada correctamente.',
         ]);
     }
 
-    protected function validarGestion(Request $request, $clienteId = null): void
-    {
-        $request->validate([
-            'tipcon'    => 'required|string',
-            'control'   => 'required|string',
-            'usuario'   => 'required|string',
-            'telef_ges' => 'nullable|string|max:15',
-        ]);
-
-        // OBTENER LOS CÓDIGOS DE PROMESA
-        $codigosPromesa = $this->obtenerCodigosPromesa();
-        $codigosConfirmacion = $this->obtenerCodigosConfirmacion(); // Si aplica
-
-        $codigoControl  = trim($request->input('control', ''));
-        $fechaPromesa        = $request->input('fecha_promesa');
-
-        $hoy    = now()->toDateString();
-        $manana = now()->addDay()->toDateString();
-
-        // Validar rango para Secciones de Promesa (Hoy y Mañana)
-        if (in_array($codigoControl, $codigosPromesa, true) && $fechaPromesa) {
-            if ($fechaPromesa < $hoy || $fechaPromesa > $manana) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'fecha_promesa' => ['La fecha de la promesa solo puede ser hoy o mañana.']
-                ]);
-            }
-        }
-
-        // Validar rango para Secciones de Confirmación (Desde el 1 del mes hasta hoy)
-        if (in_array($codigoControl, $codigosConfirmacion, true) && $fechaPromesa) {
-            $inicioMes = now()->startOfMonth()->toDateString();
-
-            if ($fechaPromesa < $inicioMes || $fechaPromesa > $hoy) {
-                throw \Illuminate\Validation\ValidationException::withMessages([
-                    'fecha_promesa' => ['La fecha de confirmación debe pertenecer al mes en curso hasta el día de hoy.']
-                ]);
-            }
-        }
-
-        // SI LA GESTIÓN ACTUAL ES UNA PROMESA
-        if (in_array($codigoControl, $codigosPromesa, true)) {
-            // Obtenemos el cod_deu enviado o buscando en el cliente
-            $codDeu = $request->input('cod_deu');
-
-            if (!$codDeu && $clienteId) {
-                $codDeu = DB::table('g110')->where('cod_deu', $clienteId)->value('cod_deu');
-            }
-
-            if ($codDeu) {
-                // Verificar si el cliente ya registra una promesa en la tabla g220
-                $tienePromesaActiva = DB::table('g220')
-                    ->where('cod_deu', $codDeu)
-                    ->where('tip_rb', $codigoControl)
-                    //->whereIn('tip_rb', $codigosPromesa)
-                    ->where('fec_reg', '>=', now()->format('Y-m-d'))
-                    ->exists();
-
-                if ($tienePromesaActiva) {
-                    throw \Illuminate\Validation\ValidationException::withMessages([
-                        'control' => ["El cliente ya cuenta con una promesa activa bajo el código {$codigoControl}. No es posible repetir esta gestión."]
-                    ]);
-                }
-            }
-        }
-    }
-
-    /**
-     * Mapea los campos del form a las columnas reales de g220.
-     * NOTA: nombre_titular, dni_titular, datos_tarjeta, medio_pago no tienen
-     * columna confirmada en g220 -> no se persisten aquí todavía.
-     * NOTA: fecha_promesa -> asumido como 'fecha1' (pendiente de confirmar
-     * con un registro real de PDP).
-     */
-    protected function mapearDatosGestion(Request $request): array
-    {
-        $datos = [
-            'tip_con'    => $request->input('tipcon'),
-            'tip_gb'     => $request->input('tipgb'),
-            'tip_rb'     => $request->input('control'),
-            'sub_res'    => $request->input('subres'),
-            'comentario' => $request->input('comentario'),
-            'cond_gral'  => $request->input('condicion'),
-            'mon_pro'    => $request->input('monto_promesa') ?: 0,
-            'moneda'     => $request->input('moneda_promesa') ?: '',
-            'fec_reg'    => $request->input('fecha_promesa') ?: null,
-            'control3'   => $request->input('nombre_titular') ?: '',
-            'control4'   => $request->input('dni_titular') ?: '',
-            'control5'   => $request->input('datos_tarjeta') ?: '',
-            'condicion'  => $request->input('medio_pago') ?: '',
-            'comenta2'   => $request->input('comenta2') ?: '',
-            'uid'        => substr($request->input('comenta2') ?: '', 0, 20),
-            'anexo'      => $request->input('anexo') ?: '',
-            'con_cam'    => $request->input('con_cam') ?: '',
-            'fec_con'    => now()->format('Y-m-d'),
-            'fec_sin'    => now()->format('Y-m-d'),
-            'control1'   => $request->input('hora_apertura'),
-            'control2'   => now()->format('H:i:s'),
-            'usuario'    => $request->input('usuario'),
-            'telef_ges'  => $request->input('telef_ges'),
-            'opcion'     => 'U',
-            'corta'      => $request->input('control_grupo'),
-            'fec_ges_ini'    => now()->format('Y-m-d') . ' ' . $request->input('hora_apertura'),
-            'fec_ges_fin'    => now()->format('Y-m-d') . ' ' . now()->format('H:i:s'),
-            'horainia'  => $request->input('hora_apertura'),
-            'horafina'   => now()->format('H:i:s'),
-        ];
-
-        if ($request->hasFile('comprobante_confirmacion')) {
-            $datos['comenta3'] = $request->file('comprobante_confirmacion')
-                ->store('comprobantes_gestion', 'public');
-        }
-
-        return $datos;
-    }
 
     /**
      * Actualiza g110.condicion y, solo si cambió respecto al valor anterior,
@@ -687,114 +532,5 @@ class ClasysController extends Controller
             'hora'      => now()->format('H:i'),
             'usuario'   => $request->input('usuario'),
         ]);
-    }
-
-
-    /**
-     * Envía la finalización de la llamada a la API de Konnexia y registra el Log en la BD.
-     */
-
-
-
-    private function enviarAKonnexia(Request $request): array
-    {
-        $url = "https://clasa.konnexiacloud.com/api/ucm/integrations/finalize";
-        $apiKey = "9e0bb019e020faed43f0ef36e6329bf75fab555064e5012735ad69fe1a577f38";
-
-        // 1. Estructura de Callback / Agenda (Solo si agendar es verdadero)
-        $callbackAt = null;
-        if ($request->boolean('agendar') && $request->filled('fec_agenda')) {
-            $fecAgenda = $request->input('fec_agenda');
-            $horAgenda = substr($request->input('hor_agenda', '00:00'), 0, 5);
-
-            $fechaAgendaFormatted = date('d-m-Y', strtotime(str_replace('/', '-', $fecAgenda)));
-            $callbackAt = "{$fechaAgendaFormatted} {$horAgenda}";
-        }
-
-        // 2. Estructura del Payload Base
-        $payload = [
-            'callId'        => $request->input('comenta2'),
-            'metadata'      => (object) [], // Objeto vacío {}
-            'callbackAt'    => $callbackAt,
-            'disposition'   => [
-                'level1'  => $request->input('control_grupo'),
-                'level2'  => $request->input('control'),
-                'level3'  => $request->input('level3', ''),
-                'comment' => $request->input('comentario'),
-            ],
-            'agentUsername' => $request->input('usuario'),
-        ];
-
-        // 3. Incluir 'promise' ÚNICAMENTE si hay fecha de promesa
-        if ($request->filled('fecha_promesa')) {
-            $fecPromesa = $request->input('fecha_promesa');
-
-            // Formatear fecha a DD-MM-YYYY (ejemplo: 24-06-2026)
-            $fechaFormatted = date('d-m-Y', strtotime(str_replace('/', '-', $fecPromesa)));
-
-            // Formatear monto a 2 decimales string (ej: "1003.00")
-            $montoRaw = $request->input('monto_promesa');
-            $montoFormatted = is_numeric($montoRaw)
-                ? number_format((float)$montoRaw, 2, '.', '')
-                : "0.00";
-
-            // Mapear Moneda
-            $monedaRaw = strtoupper($request->input('moneda_promesa', 'SOLES'));
-            $moneda = ($monedaRaw === 'S' || $monedaRaw === 'SOLES') ? 'SOLES' : 'DOLARES';
-
-            $payload['promise'] = [
-                'date'     => $fechaFormatted,
-                'amount'   => $montoFormatted,
-                'currency' => $moneda,
-            ];
-        }
-
-        try {
-            $response = Http::withHeaders([
-                'Content-Type'       => 'application/json',
-                'Accept'             => '*/*',
-                'X-Integration-Key' => $apiKey,
-            ])->post($url, $payload);
-
-            $statusCode   = $response->status();
-            $responseBody = $response->body();
-
-            // Registrar auditoría en PostgreSQL
-            DB::table('log_integracion_konnexia')->insert([
-                'call_id'       => $payload['callId'],
-                'agente'        => $payload['agentUsername'],
-                'categoria'     => $payload['disposition']['level1'],
-                'subcategoria'  => $payload['disposition']['level2'],
-                'comentario'    => $payload['disposition']['comment'],
-                'request_body'  => json_encode($payload),
-                'response_body' => $responseBody,
-                'status_code'   => $statusCode,
-            ]);
-
-            return [
-                'exito'  => $response->successful(),
-                'status' => $statusCode,
-                'data'   => $response->json()
-            ];
-        } catch (\Exception $e) {
-            Log::error("Error consumiendo API Konnexia: " . $e->getMessage());
-
-            DB::table('log_integracion_konnexia')->insert([
-                'call_id'       => $payload['callId'] ?? null,
-                'agente'        => $payload['agentUsername'] ?? null,
-                'categoria'     => $payload['disposition']['level1'] ?? null,
-                'subcategoria'  => $payload['disposition']['level2'] ?? null,
-                'comentario'    => $payload['disposition']['comment'] ?? null,
-                'request_body'  => json_encode($payload),
-                'response_body' => json_encode(['error' => $e->getMessage()]),
-                'status_code'   => 500,
-            ]);
-
-            return [
-                'exito'  => false,
-                'status' => 500,
-                'error'  => $e->getMessage()
-            ];
-        }
     }
 }
